@@ -75,6 +75,9 @@ proc expect*(expect: string): Combinator[string] =
 
 proc digit*(p: var Parser): Option[int] =
   ## Expects a digit
+  runnableExamples:
+    assert digit.match("123").get() == 123
+
   let init = p.pos
   var res: int
   p.pos += p.data.parseInt(res, start=init)

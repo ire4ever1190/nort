@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - devel
+  pull_request:
+
+jobs:
+  test:
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nim: ["stable", "devel"]
+      fail-fast: false
+      max-parallel: 3
+
+    name: Nim ${{ matrix.nim }}
+    steps:
+      - name: Setup Nim Enviroment
+        uses: actions/checkout@master
+
+      - uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: ${{ matrix.nim }}
+
+      - name: Update nimble
+        run: nimble update
+
+      - name: Run tests
+        run: nimble test
+
+      - name: Test doc examples
+        run: nimble doc src/nort.nim
