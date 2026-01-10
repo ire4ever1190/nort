@@ -54,6 +54,14 @@ test "Can match *":
     "a": @[]
   }
 
+test "* doesn't eat too much":
+  let g = (*e'a') * e'b'
+  g.check {
+    "b": true,
+    "aaaab": true,
+    "a": false
+  }
+
 test "Can match +":
   let g = +e'c'
   g.check {

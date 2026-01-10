@@ -251,7 +251,7 @@ proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
   return proc (p: var Parser): Option[seq[T]] =
     var found: seq[T]
     while true:
-      let res = comb(p)
+      let res = p.attempt(comb)
       if res.isSome():
         found &= res.get()
       else:
