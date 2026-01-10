@@ -3,7 +3,7 @@ import std/[options, sugar, parseutils, macros, sequtils]
 export options
 
 import ./[base, parser, utils, union]
-export union
+export union, base
 
 #
 # Internal functions
@@ -22,7 +22,11 @@ macro merge(a, b: typedesc): typedesc =
     result.add(nnkIdentDefs.newTree(ident child[0].strVal, child[1], newEmptyNode()))
 
 macro mapAny(t: typedesc): typedesc =
-  ## Maps a tuple type into a simple union
+  ## Maps a tuple type into a simple union.
+  ## The union has an inline enum (names of the enum being the tuple fields) which is used as a discriminator
+  ## in the object with each field being a tuple name.
+  ## This does have problems since the enum isn't exposed cleanly, see the `branch` functions.
+  ## TODO: Move into union.nim
   result = nnkTupleTy.newTree()
   var branches: seq[(string, NimNode)]
   for def in t.getTypeImpl()[1]:
@@ -116,6 +120,14 @@ proc attempt*[T](p: var Parser, comb: Combinator[T]): Option[T] =
 
 proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
   ## Joins two combinators along with their outputs
+  runnableExamples:
+    let g = any(e"won", e"lost")$outcome * e" " * digit$score
+
+    let res = g.match("won 9").get()
+    # The names were merged into a single tuple
+    assert res.outcome == "won"
+    assert res.score == 9
+
   return proc (p: var Parser): Option[merge(A, B)] =
     let a = p.attempt(left)
     if a.isNone:
@@ -180,6 +192,8 @@ proc `*`*[T](left: Combinator[T], right: Combinator[seq[T]]): Combinator[seq[T]]
 
     return some(a.get() & b.get())
 
+
+
 proc match*[T](comb: Combinator[T], data: string): Option[T] =
   ## Checks if a string matches a pattern. Returns the matched data
   var p = Parser(data: data)
@@ -192,6 +206,12 @@ proc test*[T](comb: Combinator[T], data: sink string): bool =
 
 proc fin*(p: var Parser): Option[Void] =
   ## Expects there to be no more data
+  runnableExamples "-r:off": # Reenable after https://github.com/nim-lang/Nim/issues/25433
+    let g = e"hello" * fin
+
+    assert g.test("hello")
+    assert not g.test("hello world")
+
   if p.eof(): some(Void())
   else: none(Void)
 
@@ -211,7 +231,12 @@ proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
           p.pos = init
 
 proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
-  ## Anonymous branches
+  ## Passes if any of the combinators pass, this returns the value that passed
+  runnableExamples:
+    let g = any(e"yes", e"no")
+    assert g.match("yes").get() == "yes"
+    assert g.match("no").get() == "no"
+
   let opts = @options
   return proc (p: var Parser): Option[T] =
     for opt in opts:
@@ -235,37 +260,17 @@ proc error*(msg: string): Combinator[Void] =
 
 proc `not`*(comb: Combinator): Combinator[Void] =
   ## Expects a combinator to not match
+  runnableExamples:
+    let g = not e"hello"
+    assert not g.test("hello")
+    assert g.test("goodbye")
+
   return proc (p: var Parser): Option[Void] =
-    if comb(p).isSome():
+    if p.attempt(comb).isSome():
       none(Void)
     else:
       some(Void())
 
-proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
-  ## Expects a combinator to match zero or more times. Returns all matches
-  runnableExamples:
-    let g = *e'a'
-    assert g.test("")
-    assert g.test("aa")
-
-  return proc (p: var Parser): Option[seq[T]] =
-    var found: seq[T]
-    while true:
-      let res = p.attempt(comb)
-      if res.isSome():
-        found &= res.get()
-      else:
-        break
-    return some(found)
-
-proc `+`*[T](comb: Combinator[T]): Combinator[seq[T]] =
-  ## Expects a combinator to match 1 or more times. Returns all matches
-  runnableExamples:
-    let g = +e'a' # one or more letter 'a'
-    assert g.test("aaa")
-    assert not g.test("")
-
-  return comb * *comb
 
 proc noop*[T](p: var Parser): Option[Option[T]] =
   ## Combinator that always matches. Since this version is typed,
@@ -282,6 +287,58 @@ proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
 
   return proc (p: var Parser): Option[R] =
     comb(p).map(op)
+
+
+proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
+  ## Expects a combinator to match zero or more times. Returns all matches
+  runnableExamples:
+    let g = *e"hey"
+    assert g.test("")
+    assert g.test("heyhey")
+
+  return proc (p: var Parser): Option[seq[T]] =
+    var found: seq[T]
+    while true:
+      let res = p.attempt(comb)
+      if res.isSome():
+        found &= res.get()
+      else:
+        break
+    return some(found)
+
+proc `*`*(comb: Combinator[char]): Combinator[string] =
+  ## Optimised version that produces a string instead of a sequence of chars
+  runnableExamples:
+    let g = *e'a'
+    assert g.match("aaaaa").get() == "aaaaa"
+    assert g.match("").get() == ""
+
+  return proc (p: var Parser): Option[string] =
+    let start = p.pos
+    var finish = p.pos
+    while p.attempt(comb).isSome(): discard
+
+    # Copy it instead of joining each character
+    some(p.data[start ..< p.pos])
+
+proc `+`*[T](comb: Combinator[T]): Combinator[seq[T]] =
+  ## Expects a combinator to match 1 or more times. Returns all matches
+  runnableExamples:
+    let g = +e"hey"
+    assert g.test("hey")
+    assert not g.test("")
+
+  return comb * *comb
+
+proc `+`*(comb: Combinator[char]): Combinator[string] =
+  ## Optimised version that produces a string instead of a sequence of chars
+  runnableExamples:
+    let g = +e'a' # one or more letter 'a'
+    assert g.match("aaa").get() == "aaa"
+    assert not g.test("")
+
+  # Maybe not the most optimised way...
+  return (comb$start * *comb$finish).map(proc (it: tuple[start: char, finish: string]): string = it[0] & it[1])
 
 proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
   ## Optionally matches a combinator. Attempts to parse it first, but will continue without using input if fails
