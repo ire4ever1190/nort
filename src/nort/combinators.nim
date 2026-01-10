@@ -1,9 +1,9 @@
-import std/[options, sugar, parseutils, macros, sequtils]
+import std/[options, sugar, parseutils, macros, sequtils, enumutils, strutils, setutils, sets]
 
 export options
 
 import ./[base, parser, utils, union]
-export union, base
+export union, base, sets
 
 #
 # Internal functions
@@ -93,6 +93,14 @@ proc expect*(expect: string): Combinator[string] =
 
   return proc (p: var Parser): Option[string] =
     p.continuesWith(expect)
+
+proc expect*[T](values: HashSet[T]): Combinator[T] =
+  ## Expects a single value from a set of values.
+  ## This is a generic function that calls `expect` on each value
+  let possible = collect:
+    for value in values:
+      expect(value)
+  return any(possible)
 
 proc digit*(p: var Parser): Option[int] =
   ## Expects a digit
@@ -202,18 +210,42 @@ iterator match*[T](comb: Combinator[seq[T]], data: string): T =
   runnableExamples:
     # Will echo 3 phrases
     var count = 0
-    let g = *(any(e"hi", e"bye")$saying)
+    let g = *any(e"hi", e"bye")
     for line in g.match("hibyehi"):
       count += 1
-      echo line.saying
+      echo line
     assert count == 3
 
   var p = Parser(data: data)
-  for data in comb(p):
-    yield data
+  let ret = comb(p)
+  if ret.isSome():
+    for data in ret.get():
+      yield data
+
+iterator match*[T](comb: Combinator[T], data: string): T =
+  ## Returns zero or more matches of `comb` in data
+  runnableExamples:
+    # Will echo 3 phrases
+    var count = 0
+    let g = any(e"hi", e"bye")
+    for line in g.match("hibyehi"):
+      count += 1
+      echo line
+    assert count == 3
+
+  var p = Parser(data: data)
+  while true:
+    let ret = comb(p)
+    if ret.isNone: break
+    yield ret.get()
 
 proc test*[T](comb: Combinator[T], data: sink string): bool =
   ## Tests if an input matches a combinator
+  runnableExamples:
+    let g = e"hello"
+    assert g.test("hello")
+    assert not g.test("bye")
+
   var p = Parser(data: data)
   comb(p).isSome()
 
@@ -257,6 +289,22 @@ proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
       if res.isSome():
         return res
 
+proc noop*[T](p: var Parser): Option[Option[T]] =
+  ## Combinator that always matches. Since this version is typed,
+  ## the data return is `none(T)` (but the parsing does pass)
+  return some(none(T))
+
+proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
+  ## Allows you to perform an operator on a combinators output if it passes
+  runnableExamples:
+    import std/[sugar, strutils]
+
+    let g = "hello".expect.map(toUpperAscii)
+    assert g.match("hello").get() == "HELLO"
+
+  return proc (p: var Parser): Option[R] =
+    comb(p).map(op)
+
 proc e*[T](val: T): Combinator[T] =
   ## Alias for [expect]
   return expect(val)
@@ -264,6 +312,24 @@ proc e*[T](val: T): Combinator[T] =
 proc e*[T](val: set[T]): Combinator[T] =
   ## Alias for [expect], expect for sets we expect the single match to return
   return expect(val)
+
+proc expect*[T: enum](e: typedesc[T]): Combinator[T] =
+  ## Expects to read an enum. This is based on the stringified value of the enum
+  runnableExamples:
+    type
+      Colours = enum
+        Red = "rua"
+        Green
+        Blue = (4, "blu")
+    let g = expect(Colours)
+    assert g.match("rua").get() == Red
+    assert g.match("Green").get() == Green
+    assert g.match("blu").get() == Blue
+
+  const possible = toHashSet do: collect:
+    for val in fullset(e):
+      $val
+  return expect(possible).map(parseEnum[T])
 
 proc error*(msg: string): Combinator[Void] =
   ## Throws an error, useful for debugging to see if
@@ -283,24 +349,6 @@ proc `not`*(comb: Combinator): Combinator[Void] =
       none(Void)
     else:
       some(Void())
-
-
-proc noop*[T](p: var Parser): Option[Option[T]] =
-  ## Combinator that always matches. Since this version is typed,
-  ## the data return is `none(T)` (but the parsing does pass)
-  return some(none(T))
-
-proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
-  ## Allows you to perform an operator on a combinators output if it passes
-  runnableExamples:
-    import std/[sugar, strutils]
-
-    let g = "hello".expect.map(toUpperAscii)
-    assert g.match("hello").get() == "HELLO"
-
-  return proc (p: var Parser): Option[R] =
-    comb(p).map(op)
-
 
 proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
   ## Expects a combinator to match zero or more times. Returns all matches
@@ -362,3 +410,11 @@ proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
 
   let wrapped = comb.map() do (inp: T) -> Option[T]: some(inp)
   return any(wrapped, Combinator[Option[T]](noop[T]))
+
+proc sep*[T](comb: Combinator[T], sep: string): Combinator[seq[T]] =
+  ## Matches a zero or more of `comb` that is separate by `sep`
+  runnableExamples:
+    let g = digit.sep(", ")
+    assert g.match("1, 2, 3").get() == @[1, 2, 3]
+
+  return *(comb * ?e(sep))
