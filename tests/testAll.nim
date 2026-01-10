@@ -5,7 +5,7 @@
 #
 # To run these tests, simply execute `nimble test`.
 
-import unittest
+import std/[unittest, strutils]
 
 import nort
 import nort/base
@@ -48,12 +48,19 @@ test "Can match +":
     "c": true
   }
 
+test "fin matches end of string":
+  let g = e"hello" * fin
+  g.check {
+    "hello world": false,
+    "hello": true
+  }
+
 
 test "Can match union":
-  let init = any(expect("hello"), expect("goodbye"))
+  let init = any(e("hello"), e("goodbye"))
   let val = any((
-    bar: init * e" world" * fin,
-    foo: e" world"
+    bar: init * e(Whitespace) * e"world" * fin,
+    foo: e"world"
   )).match("goodbye world")
 
   checkpoint $val

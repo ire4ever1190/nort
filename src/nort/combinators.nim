@@ -208,6 +208,16 @@ proc e*[T](val: T): Combinator[T] =
   ## Alias for [expect]
   return expect(val)
 
+proc e*[T](val: set[T]): Combinator[T] =
+  ## Alias for [expect], expect for sets we expect the single match to return
+  return expect(val)
+
+proc error*(msg: string): Combinator[Void] =
+  ## Throws an error, useful for debugging to see if
+  ## the combinator hits something
+  return proc (p: var Parser): Option[Void] =
+    raise (ref CatchableError)(msg: msg)
+
 proc `not`*(comb: Combinator): Combinator[Void] =
   ## Expects a combinator to not match
   return proc (p: var Parser): Option[Void] =
