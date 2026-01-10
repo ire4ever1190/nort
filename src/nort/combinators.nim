@@ -192,12 +192,25 @@ proc `*`*[T](left: Combinator[T], right: Combinator[seq[T]]): Combinator[seq[T]]
 
     return some(a.get() & b.get())
 
-
-
 proc match*[T](comb: Combinator[T], data: string): Option[T] =
   ## Checks if a string matches a pattern. Returns the matched data
   var p = Parser(data: data)
   comb(p)
+
+iterator match*[T](comb: Combinator[seq[T]], data: string): T =
+  ## Returns each line that is matched
+  runnableExamples:
+    # Will echo 3 phrases
+    var count = 0
+    let g = *(any(e"hi", e"bye")$saying)
+    for line in g.match("hibyehi"):
+      count += 1
+      echo line.saying
+    assert count == 3
+
+  var p = Parser(data: data)
+  for data in comb(p):
+    yield data
 
 proc test*[T](comb: Combinator[T], data: sink string): bool =
   ## Tests if an input matches a combinator
