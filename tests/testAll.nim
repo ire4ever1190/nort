@@ -28,6 +28,23 @@ template check[T](comb: Combinator[T], tests: openArray[(string, T)]) =
     check matched.isSome()
     check matched.get() == expected
 
+test "Can match digit":
+  let g = digit
+  g.check {
+    "1": 1,
+    "-1": -1,
+    "00999": 999
+  }
+  g.check {
+    "a": false,
+  }
+
+test "Can match string":
+  let g = e"hello"
+  g.check {
+    "hello": "hello",
+    "helloworld": "hello"
+  }
 
 test "Can match *":
   let g = *e'c'
@@ -47,6 +64,7 @@ test "Can match +":
     "": false,
     "c": true
   }
+
 
 test "fin matches end of string":
   let g = e"hello" * fin

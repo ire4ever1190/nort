@@ -12,5 +12,13 @@ type
     ## Parser that optionally returns data
 
 
-template `$`[T](comb: Combinator[T], name: untyped): untyped =
+
+
+proc bindTo[T; R: tuple](comb: Combinator[T]): Combinator[R] =
+  return proc (p: var Parser): Option[(T,)] =
+    let val = comb(p)
+    if val.isSome():
+      return some((val.get(),))
+
+template `$`*[T](comb: Combinator[T], name: untyped): untyped =
   bindTo[T, tuple[name: T]](comb)

@@ -87,12 +87,6 @@ proc `-`*(comb: Combinator): Combinator[Void] =
     if comb(p).isNone(): none(Void)
     else: some(Void())
 
-proc bindTo[T; R: tuple](comb: Combinator[T]): Combinator[R] =
-  return proc (p: var Parser): Option[(T,)] =
-    let val = comb(p)
-    if val.isSome():
-      return some((val.get(),))
-
 proc attempt*[T](p: var Parser, comb: Combinator[T]): Option[T] =
   ## Attempts to run a combinator. Resets the parser if it fails
   let init = p.pos
@@ -159,6 +153,7 @@ proc `*`*[T](left: Combinator[T], right: Combinator[seq[T]]): Combinator[seq[T]]
     let b = p.attempt(right)
     if b.isNone:
       return none(seq[T])
+
     return some(a.get() & b.get())
 
 proc match*[T](comb: Combinator[T], data: string): Option[T] =
@@ -166,12 +161,12 @@ proc match*[T](comb: Combinator[T], data: string): Option[T] =
   var p = Parser(data: data)
   comb(p)
 
-proc test*(comb: Combinator, data: string): bool =
+proc test*[T](comb: Combinator[T], data: sink string): bool =
   ## Tests if an input matches a combinator
   var p = Parser(data: data)
   comb(p).isSome()
 
-proc match*(comb: Combinator[Void], data: string): bool =
+proc match*(comb: Combinator[Void], data: sink string): bool =
   ## Checks if a string matches a pattern
   comb.test(data)
 
