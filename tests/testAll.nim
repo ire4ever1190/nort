@@ -65,7 +65,6 @@ test "Can match +":
     "c": true
   }
 
-
 test "fin matches end of string":
   let g = e"hello" * fin
   g.check {

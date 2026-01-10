@@ -284,11 +284,11 @@ proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
     comb(p).map(op)
 
 proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
-  ## Optionally matches a combinator. This match is non greedy
+  ## Optionally matches a combinator. Attempts to parse it first, but will continue without using input if fails
   runnableExamples:
     let g = ?e"hello"
-    assert g.match("foo").get().isNone()
-    assert g.match("hello").get().isNone() # Not greedy
+    assert g.match("foo").get().isNone() # Still matches, but returns nothing
+    assert g.match("hello").get() == some("hello")
 
   let wrapped = comb.map() do (inp: T) -> Option[T]: some(inp)
-  return any(Combinator[Option[T]](noop[T]), wrapped)
+  return any(wrapped, Combinator[Option[T]](noop[T]))
