@@ -243,6 +243,11 @@ proc `not`*(comb: Combinator): Combinator[Void] =
 
 proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
   ## Expects a combinator to match zero or more times. Returns all matches
+  runnableExamples:
+    let g = *e'a'
+    assert g.test("")
+    assert g.test("aa")
+
   return proc (p: var Parser): Option[seq[T]] =
     var found: seq[T]
     while true:
@@ -255,4 +260,35 @@ proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
 
 proc `+`*[T](comb: Combinator[T]): Combinator[seq[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
+  runnableExamples:
+    let g = +e'a' # one or more letter 'a'
+    assert g.test("aaa")
+    assert not g.test("")
+
   return comb * *comb
+
+proc noop*[T](p: var Parser): Option[Option[T]] =
+  ## Combinator that always matches. Since this version is typed,
+  ## the data return is `none(T)` (but the parsing does pass)
+  return some(none(T))
+
+proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
+  ## Allows you to perform an operator on a combinators output if it passes
+  runnableExamples:
+    import std/[sugar, strutils]
+
+    let g = "hello".expect.map(toUpperAscii)
+    assert g.match("hello").get() == "HELLO"
+
+  return proc (p: var Parser): Option[R] =
+    comb(p).map(op)
+
+proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
+  ## Optionally matches a combinator. This match is non greedy
+  runnableExamples:
+    let g = ?e"hello"
+    assert g.match("foo").get().isNone()
+    assert g.match("hello").get().isNone() # Not greedy
+
+  let wrapped = comb.map() do (inp: T) -> Option[T]: some(inp)
+  return any(Combinator[Option[T]](noop[T]), wrapped)
