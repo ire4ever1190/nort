@@ -57,19 +57,36 @@ proc join[R](a: tuple, b: tuple, ret: typedesc[R]): R =
 
 proc any*(p: var Parser): Option[char] =
   ## Parses any character
+  runnableExamples:
+    assert any.match("abc") == some('a')
   return p.eat()
 
 proc expect*(expect: set[char]): Combinator[char] =
   ## Expects a set of characters, returns the matched value
+  runnableExamples:
+    let g = expect({'a', 'b', 'c'})
+    assert g.match("a") == some('a')
+    assert g.match("d").isNone()
+
   return proc (p: var Parser): Option[char] =
     p.eat().filter(it => it in expect)
 
 proc expect*(input: char): Combinator[char] =
   ## Expects a character to appear
+  runnableExamples:
+    let g = expect('a')
+    assert g.match("a") == some('a')
+    assert g.match("b").isNone()
+
   return expect({input})
 
 proc expect*(expect: string): Combinator[string] =
   ## Expects a certain string
+  runnableExamples:
+    let g = expect("foo")
+    assert g.match("foo") == some("foo")
+    assert g.match("bar").isNone()
+
   return proc (p: var Parser): Option[string] =
     p.continuesWith(expect)
 
@@ -123,6 +140,10 @@ proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Co
 
 proc `*`*[A: not tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[Void] =
   ## Joins two combinators
+  runnableExamples:
+    let g = e"hello" * e" " * e"world"
+    assert g.test("hello world")
+
   return proc (p: var Parser): Option[Void] =
     let a = p.attempt(left)
     if a.isNone:
@@ -168,10 +189,6 @@ proc test*[T](comb: Combinator[T], data: sink string): bool =
   ## Tests if an input matches a combinator
   var p = Parser(data: data)
   comb(p).isSome()
-
-proc match*(comb: Combinator[Void], data: sink string): bool =
-  ## Checks if a string matches a pattern
-  comb.test(data)
 
 proc fin*(p: var Parser): Option[Void] =
   ## Expects there to be no more data
