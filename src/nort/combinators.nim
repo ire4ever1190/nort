@@ -118,6 +118,8 @@ proc digit*(p: var Parser): Option[int] =
   let init = p.pos
   var res: int
   p.pos += p.data.parseInt(res, start=init)
+
+  # If the position progressed, then the parsing was a success
   if p.pos == init: none(int)
   else: some(res)
 
@@ -176,7 +178,7 @@ proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Co
     let b = p.attempt(right)
     if b.isNone:
       return none(merge(A, B))
-    return some(b.get())
+    return b.get()
 
 
 proc `*`*[A: not tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[Void] =
@@ -195,6 +197,21 @@ proc `*`*[A: not tuple, B: not tuple](left: Combinator[A], right: Combinator[B])
       return none(Void)
     return some(Void())
 
+proc `*`*[T](left: Combinator[T], right: Combinator[Void]): Combinator[T] =
+  ## Carries a type through if the right side doesn't have one
+  runnableExamples:
+    let g = e"hello" * e" " * e"world"
+    assert g.test("hello world")
+
+  return proc (p: var Parser): Option[T] =
+    let a = p.attempt(left)
+    if a.isNone:
+      return none(T)
+
+    let b = p.attempt(right)
+    if b.isNone:
+      return none(T)
+    return a
 
 proc `*`*[T: seq](left, right: Combinator[T]): Combinator[T] =
   ## Joins two combinators, merging the results of both
@@ -440,4 +457,4 @@ proc sep*[T](comb: Combinator[T], sep: string): Combinator[seq[T]] =
     assert g.match("1, 2, 3").get() == @[1, 2, 3]
 
   # We need to convert it to a tuple and then unwrap it or else we lose the types
-  return * (bindTo[T, tuple[name: T]](comb) * ?e(sep)).map(proc (x: (T,)): T = x[0])
+  return * (comb * -(?e(sep)))
