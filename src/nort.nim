@@ -16,15 +16,17 @@ runnableExamples:
   # Unlike regex, we can build up the grammar to make it easier to read
   let
     # `expect` is the main function for mapping
-    name = +(not expect Whitespace) # Username is anything that isn't Whitespace
+    name = +(expect IdentChars) # Username is anything that isn't Whitespace
     # `e` is an alias for expect
     attempts = e"attempts:" * digit$count # We can capture and store in a name with `$`
     failed = e"failed:" * digit$count
     # `*` is used to join items
-    line = name$name * e' ' * attempt$attempt * e' ' * failed$failure
+    line = name$name * (e' ') * attempts$attempt * (e' ') * failed$failure
     # Just like regex, * and + can be used to repeat items. They need to be
     # prefixes though
     everything = *line
+
+  echo name.match("jgod1")
 
   for line in everything.match(data):
     # Each line has a tuple with the names we binded

@@ -14,7 +14,7 @@ type
 
 
 
-proc bindTo[T; R: tuple](comb: Combinator[T]): Combinator[R] =
+proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
   return proc (p: var Parser): Option[(T,)] =
     let val = comb(p)
     if val.isSome():
