@@ -9,7 +9,7 @@ export union, base, sets, options
 # Internal functions
 #
 
-macro merge(a, b: typedesc): typedesc =
+macro merge(a: typedesc[tuple], b: typedesc[tuple]): typedesc =
   ## Merges two types into a tuple. If `a` is already a tuple then `b` is appended to it
   let
     a = a.getTypeImpl()[1]
@@ -18,8 +18,17 @@ macro merge(a, b: typedesc): typedesc =
   result = nnkTupleTy.newTree()
   for child in a:
     result.add(nnkIdentDefs.newTree(ident child[0].strVal, child[1], newEmptyNode()))
+
   for child in b:
     result.add(nnkIdentDefs.newTree(ident child[0].strVal, child[1], newEmptyNode()))
+
+macro merge(a: typedesc[not tuple], b: typedesc[tuple]): typedesc =
+  ## Just returns `b` since we don't merge tuples with single types
+  return b
+
+macro merge(a: typedesc[tuple], b: typedesc[not tuple]): typedesc =
+  ## Just returns `a` since we don't merge tuples with single types
+  return a
 
 macro mapAny(t: typedesc): typedesc =
   ## Maps a tuple type into a simple union.
@@ -105,8 +114,7 @@ proc expect*[T](values: HashSet[T]): Combinator[T] =
 proc digit*(p: var Parser): Option[int] =
   ## Expects a digit
   runnableExamples:
-    # assert digit.match("123").get() == 123
-    discard
+    assert digit.match("123").get() == 123
   let init = p.pos
   var res: int
   p.pos += p.data.parseInt(res, start=init)
@@ -425,9 +433,11 @@ proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
   let wrapped = comb.map() do (inp: T) -> Option[T]: some(inp)
   return any(wrapped, Combinator[Option[T]](noop[T]))
 
-proc sep*[T](comb: Combinator[T], sep: string): Combinator[seq[Void]] =
+proc sep*[T](comb: Combinator[T], sep: string): Combinator[seq[T]] =
   ## Matches a zero or more of `comb` that is separate by `sep`
   runnableExamples:
     let g = digit.sep(", ")
-    # assert g.match("1, 2, 3").get() == @[1, 2, 3]
-  return *(comb * ?e(sep))
+    assert g.match("1, 2, 3").get() == @[1, 2, 3]
+
+  # We need to convert it to a tuple and then unwrap it or else we lose the types
+  return * (bindTo[T, tuple[name: T]](comb) * ?e(sep)).map(proc (x: (T,)): T = x[0])

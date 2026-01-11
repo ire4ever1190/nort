@@ -1,5 +1,5 @@
 ## This is internal library code to set everything up
-import std/options
+import std/[options, macros]
 export options
 
 import ./parser
