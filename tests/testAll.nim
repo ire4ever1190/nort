@@ -46,12 +46,12 @@ test "Can match string":
     "helloworld": "hello"
   }
 
-test "Can match *":
+test "Can match * that are turned into strings":
   let g = *e'c'
   g.check {
-    "": @[],
-    "ccc": @['c', 'c', 'c'],
-    "a": @[]
+    "": "",
+    "ccc": "ccc",
+    "a": ""
   }
 
 test "* doesn't eat too much":
@@ -65,8 +65,8 @@ test "* doesn't eat too much":
 test "Can match +":
   let g = +e'c'
   g.check {
-    "ccc": @['c', 'c', 'c'],
-    "c": @['c']
+    "ccc": "ccc",
+    "c": "c"
   }
   g.check {
     "": false,
