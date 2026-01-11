@@ -1,5 +1,7 @@
 import std/macros
 
+## Internal utilities, you shouldn't need these
+
 macro access*(a: untyped, name: static[string]): untyped =
   return nnkDotExpr.newTree(a, ident(name))
 

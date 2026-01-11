@@ -47,6 +47,17 @@ proc join[R](a: tuple, b: tuple, ret: typedesc[R]): R =
 # Combinators
 #
 
+proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] =
+  ## Filter what values are allowed to consider that the filter has passed
+  runnableExamples:
+    import std/[strutils, sugar]
+    let g = filter(*e({'a' .. 'z', ' '}), inp => inp.startsWith("hello"))
+    assert g.test("hello world")
+    assert not g.test("world")
+
+  return proc (p: var Parser): Option[T] =
+    comb(p).filter(check)
+
 proc any*(p: var Parser): Option[char] =
   ## Parses any character
   runnableExamples:
@@ -59,9 +70,7 @@ proc expect*(expect: set[char]): Combinator[char] =
     let g = expect({'a', 'b', 'c'})
     assert g.match("a") == some('a')
     assert g.match("d").isNone()
-
-  return proc (p: var Parser): Option[char] =
-    p.eat().filter(it => it in expect)
+  return filter(eat, it => it in expect)
 
 proc expect*(input: char): Combinator[char] =
   ## Expects a character to appear
@@ -101,6 +110,23 @@ proc digit*(p: var Parser): Option[int] =
   # If the position progressed, then the parsing was a success
   if p.pos == init: none(int)
   else: some(res)
+
+proc contains*[T](rng: Slice[T], comb: Combinator[T]): Combinator[T] =
+  ## Ensures that the result of a combinator is within a range
+  comb.filter(it => it in rng)
+
+proc contains*[T; R: range](rng: typedesc[R], comb: Combinator[T]): Combinator[R] =
+  ## Ensures that an ordinal type is within a range of values. This then converts it into
+  ## that range type
+  runnableExamples:
+    let g = digit in 1..10
+    assert g.test("5")
+    assert not g.test("0")
+
+  proc remap(inp: T): R = R(inp)
+  const slice = Slice[T](a: low(R), b: high(R))
+
+  map(comb in slice, remap)
 
 proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
@@ -355,14 +381,17 @@ proc error*(msg: string): Combinator[Void] =
     raise (ref CatchableError)(msg: msg)
 
 proc `not`*(comb: Combinator): Combinator[Void] =
-  ## Expects a combinator to not match
+  ## Expects a combinator to not match. This is a negative lookahead that doesn't consume
+  ## any input
   runnableExamples:
     let g = not e"hello"
     assert not g.test("hello")
     assert g.test("goodbye")
 
   return proc (p: var Parser): Option[Void] =
+    let start = p.pos
     if p.attempt(comb).isSome():
+      p.pos = start # Make sure we reset
       none(Void)
     else:
       some(Void())
@@ -393,7 +422,6 @@ proc `*`*(comb: Combinator[char]): Combinator[string] =
 
   return proc (p: var Parser): Option[string] =
     let start = p.pos
-    var finish = p.pos
     while p.attempt(comb).isSome():
       discard
 
