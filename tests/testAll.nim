@@ -46,6 +46,14 @@ test "Can match string":
     "helloworld": "hello"
   }
 
+test "Can parse until target":
+  let g = any.until(e"hello")
+  g.check {
+    "abcdhello": "abcd",
+    "hello": "",
+    "hell": "hello"
+  }
+
 test "Can match * that are turned into strings":
   let g = *e'c'
   g.check {

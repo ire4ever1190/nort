@@ -5,6 +5,11 @@ export options
 import ./[base, parser, utils, union]
 export union, base, sets, options
 
+type
+  Chain*[T] = (when T is char: string else: seq[T])
+    ## Represents chaining combinators together. Characters
+    ## are joined into strings but other types just become `seq`
+
 #
 # Internal functions
 #
@@ -141,6 +146,17 @@ proc attempt*[T](p: var Parser, comb: Combinator[T]): Option[T] =
   if result.isNone():
     p.pos = init
 
+proc prec[L, R, T](p: var Parser, left: Combinator[L], right: Combinator[R], join: proc (l: L, r: R): T): Option[T] =
+  ## Attempts to run `left`, if that successeds then it runs `right`.
+  ## If both pass then it calls `join` to merge them
+  let l = p.attempt(left)
+  if l.isNone: return none(T)
+
+  let r = p.attempt(right)
+  if r.isNone: return none(T)
+
+  return some(join((l.get(), r.get())))
+
 proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
   ## Joins two combinators along with their outputs
   runnableExamples:
@@ -152,96 +168,56 @@ proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combin
     assert res.score == 9
 
   return proc (p: var Parser): Option[merge(A, B)] =
-    let a = p.attempt(left)
-    if a.isNone:
-      return none(merge(A, B))
+    p.prec(left, right) do (l: A, r: B) -> merge(A, B):
+      join(l.get(), r.get(), type(result))
 
-    let b = p.attempt(right)
-    if b.isNone:
-      return none(merge(A, B))
-    return some(join(a.get(), b.get(), merge(A, B)))
+proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[A] =
+  ## Joins two combinators
+  return proc (p: var Parser): Option[A] =
+    p.prec(left, right) do (l: A, r: B) -> A: l
 
-proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
+proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[B] =
   ## Joins two combinators
   return proc (p: var Parser): Option[merge(A, B)] =
-    let a = p.attempt(left)
-    if a.isNone:
-      return none(merge(A, B))
-
-    let b = p.attempt(right)
-    if b.isNone:
-      return none(merge(A, B))
-    return some(a.get())
-
-proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
-  ## Joins two combinators
-  return proc (p: var Parser): Option[merge(A, B)] =
-    let a = p.attempt(left)
-    if a.isNone:
-      return none(merge(A, B))
-
-    let b = p.attempt(right)
-    if b.isNone:
-      return none(merge(A, B))
-    return b.get()
+    p.prec(left, right) do (l: A, r: B) -> A: r
 
 
-proc `*`*[A: not tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[Void] =
+proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
   ## Joins two combinators
   runnableExamples:
     let g = e"hello" * e" " * e"world"
     assert g.test("hello world")
 
   return proc (p: var Parser): Option[Void] =
-    let a = p.attempt(left)
-    if a.isNone:
-      return none(Void)
+    p.prec(left, right) do (l: Void, r: Void) -> Void: Void()
 
-    let b = p.attempt(right)
-    if b.isNone:
-      return none(Void)
-    return some(Void())
-
-proc `*`*[T](left: Combinator[T], right: Combinator[Void]): Combinator[T] =
+proc `*`*[T: not tuple](left: Combinator[T], right: Combinator[Void]): Combinator[T] =
   ## Carries a type through if the right side doesn't have one
   runnableExamples:
     let g = e"hello" * e" " * e"world"
     assert g.test("hello world")
 
   return proc (p: var Parser): Option[T] =
-    let a = p.attempt(left)
-    if a.isNone:
-      return none(T)
+    p.prec(left, right) do (l: T, r: Void) -> T: l
 
-    let b = p.attempt(right)
-    if b.isNone:
-      return none(T)
-    return a
+proc `*`*[T](left: Combinator[Void], right: Combinator[T]): Combinator[T] =
+  ## Carries a type through if the right side doesn't have one
+  runnableExamples:
+    let g = e"hello" * e" " * e"world"
+    assert g.test("hello world")
 
-proc `*`*[T: seq](left, right: Combinator[T]): Combinator[T] =
+  return proc (p: var Parser): Option[T] =
+    p.prec(left, right) do (l: Void, r: T) -> T: r
+
+proc `*`*[T](left: Combinator[T], right: Combinator[Chain[T]]): Combinator[Chain[T]] =
   ## Joins two combinators, merging the results of both
-  return proc (p: var Parser): Option[seq[T]] =
-    let a = p.attempt(left)
-    if a.isNone:
-      return none(seq[T])
+  return proc (p: var Parser): Option[Chain[T]] =
+    p.prec(left, right) do (l: T, r: Chain[T]) -> Chain[T]: l & r
 
-    let b = p.attempt(right)
-    if b.isNone:
-      return none(seq[T])
-    return some(a.get() & b.get())
-
-proc `*`*[T](left: Combinator[T], right: Combinator[seq[T]]): Combinator[seq[T]] =
+proc `*`*[T](left: Combinator[Chain[T]], right: Combinator[T]): Combinator[Chain[T]] =
   ## Joins two combinators, merging the results of both
-  return proc (p: var Parser): Option[seq[T]] =
-    let a = p.attempt(left)
-    if a.isNone:
-      return none(seq[T])
-
-    let b = p.attempt(right)
-    if b.isNone:
-      return none(seq[T])
-
-    return some(a.get() & b.get())
+  return proc (p: var Parser): Option[Chain[T]] =
+    p.prec(left, right) do (l: Chain[T], r: T) -> Chain[T]: l & r
 
 proc match*[T](comb: Combinator[T], data: string): Option[T] =
   ## Checks if a string matches a pattern. Returns the matched data
@@ -413,7 +389,7 @@ proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
         break
     return some(found)
 
-proc `*`*(comb: Combinator[char]): Combinator[string] =
+proc `*`*(comb: Combinator[char]): Combinator[Chain[char]] =
   ## Optimised version that produces a string instead of a sequence of chars
   runnableExamples:
     let g = *e'a'
@@ -428,7 +404,7 @@ proc `*`*(comb: Combinator[char]): Combinator[string] =
     # Copy it instead of joining each character
     some(p.data[start ..< p.pos])
 
-proc `+`*[T](comb: Combinator[T]): Combinator[seq[T]] =
+proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
   runnableExamples:
     let g = +e"hey"
@@ -436,16 +412,6 @@ proc `+`*[T](comb: Combinator[T]): Combinator[seq[T]] =
     assert not g.test("")
 
   return comb * *comb
-
-proc `+`*(comb: Combinator[char]): Combinator[string] =
-  ## Optimised version that produces a string instead of a sequence of chars
-  runnableExamples:
-    let g = +e'a' # one or more letter 'a'
-    assert g.match("aaa").get() == "aaa"
-    assert not g.test("")
-
-  # Maybe not the most optimised way...
-  return (comb$start * *comb$finish).map(proc (it: tuple[start: char, finish: string]): string = it[0] & it[1])
 
 proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
   ## Optionally matches a combinator. Attempts to parse it first, but will continue without using input if fails
@@ -465,3 +431,7 @@ proc sep*[T](comb: Combinator[T], sep: string): Combinator[seq[T]] =
 
   # We need to convert it to a tuple and then unwrap it or else we lose the types
   return * (comb * -(?e(sep)))
+
+proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
+  ## Parses `comb` until it encounters `target` (without consuming target)
+  *(not target * comb)
