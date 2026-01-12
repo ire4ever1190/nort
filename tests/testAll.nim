@@ -51,7 +51,7 @@ test "Can parse until target":
   g.check {
     "abcdhello": "abcd",
     "hello": "",
-    "hell": "hello"
+    "hell": "hell"
   }
 
 test "Can match * that are turned into strings":
@@ -82,7 +82,8 @@ test "Can match +":
   }
 
 test "fin matches end of string":
-  let g = e"hello" * fin
+  let tt: Combinator[Void] = fin # ??? ambigious call otherwise
+  let g = e"hello" * tt
   g.check {
     "hello world": false,
     "hello": true
@@ -90,7 +91,7 @@ test "fin matches end of string":
 
 
 test "Can match union":
-  let init = any(e("hello"), e("goodbye"))
+  let init: Combinator[Chain[char]] = any(e("hello"), e("goodbye"))
   let val = any((
     bar: init * e(Whitespace) * e"world" * fin,
     foo: e"world"
@@ -104,7 +105,7 @@ test "Can match union":
   of foo: discard
   of bar: discard
 
-  echo val.get().bar
+  discard val.get().bar
 
 test "Negation matches":
   let g = not e"hello"

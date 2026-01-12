@@ -116,23 +116,6 @@ proc digit*(p: var Parser): Option[int] =
   if p.pos == init: none(int)
   else: some(res)
 
-proc contains*[T](rng: Slice[T], comb: Combinator[T]): Combinator[T] =
-  ## Ensures that the result of a combinator is within a range
-  comb.filter(it => it in rng)
-
-proc contains*[T; R: range](rng: typedesc[R], comb: Combinator[T]): Combinator[R] =
-  ## Ensures that an ordinal type is within a range of values. This then converts it into
-  ## that range type
-  runnableExamples:
-    let g = digit in 1..10
-    assert g.test("5")
-    assert not g.test("0")
-
-  proc remap(inp: T): R = R(inp)
-  const slice = Slice[T](a: low(R), b: high(R))
-
-  map(comb in slice, remap)
-
 proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
   return proc (p: var Parser): Option[Void] =
@@ -155,7 +138,7 @@ proc prec[L, R, T](p: var Parser, left: Combinator[L], right: Combinator[R], joi
   let r = p.attempt(right)
   if r.isNone: return none(T)
 
-  return some(join((l.get(), r.get())))
+  return some(join(l.get(), r.get()))
 
 proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
   ## Joins two combinators along with their outputs
@@ -169,7 +152,7 @@ proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combin
 
   return proc (p: var Parser): Option[merge(A, B)] =
     p.prec(left, right) do (l: A, r: B) -> merge(A, B):
-      join(l.get(), r.get(), type(result))
+      join(l, r, type(result))
 
 proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[A] =
   ## Joins two combinators
@@ -181,6 +164,11 @@ proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Co
   return proc (p: var Parser): Option[merge(A, B)] =
     p.prec(left, right) do (l: A, r: B) -> A: r
 
+template `*`*(left: Combinator, right: Combinator): Combinator[Void] =
+  ## Joins two combinators. Types are erased since we don't know what to do
+  ## with them
+  proc (p: var Parser): Option[Void] =
+    p.prec(left, right) do (l: left.T, r: right.T) -> Void: Void()
 
 proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
   ## Joins two combinators
@@ -189,7 +177,7 @@ proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
     assert g.test("hello world")
 
   return proc (p: var Parser): Option[Void] =
-    p.prec(left, right) do (l: Void, r: Void) -> Void: Void()
+    p.prec(left, right) do (l, r: Void) -> Void: Void()
 
 proc `*`*[T: not tuple](left: Combinator[T], right: Combinator[Void]): Combinator[T] =
   ## Carries a type through if the right side doesn't have one
