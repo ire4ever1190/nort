@@ -29,7 +29,7 @@ template check[T](comb: Combinator[T], tests: openArray[(string, T)]) =
     check matched.get() == expected
 
 test "Can match digit":
-  let g = digit
+  let g = digit()
   g.check {
     "1": 1,
     "-1": -1,
@@ -82,8 +82,7 @@ test "Can match +":
   }
 
 test "fin matches end of string":
-  let tt: Combinator[Void] = fin # ??? ambigious call otherwise
-  let g = e"hello" * tt
+  let g = e"hello" * fin()
   g.check {
     "hello world": false,
     "hello": true
@@ -93,7 +92,7 @@ test "fin matches end of string":
 test "Can match union":
   let init: Combinator[Chain[char]] = any(e("hello"), e("goodbye"))
   let val = any((
-    bar: init * e(Whitespace) * e"world" * fin,
+    bar: init * e(Whitespace) * e"world" * fin(),
     foo: e"world"
   )).match("goodbye world")
 
@@ -112,4 +111,10 @@ test "Negation matches":
   g.check {
     "world": true,
     "hello": false
+  }
+
+test "Can join unrelated types":
+  let g = e('(') * digit()
+  g.check {
+    "(123": true
   }

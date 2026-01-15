@@ -165,7 +165,7 @@ proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Co
   return proc (p: var Parser): Option[B] =
     p.prec(left, right) do (l: A, r: B) -> B: r
 
-template `*`*(left: Combinator, right: Combinator): Combinator[Void] =
+template `*`*[A, B](left: Combinator[A], right: Combinator[B]): Combinator[Void] =
   ## Joins two combinators. Types are erased since we don't know what to do
   ## with them
   proc (p: var Parser): Option[Void] =
@@ -259,7 +259,7 @@ proc test*[T](comb: Combinator[T], data: sink string): bool =
 
 # You'll see functions like this that don't need to be functions.
 # It helps with errors if the type system knows its a Combinator, compiler should inline it
-proc fin(): Combinator[Void] {.inline.} =
+proc fin*(): Combinator[Void] {.inline.} =
   ## Expects there to be no more data
   runnableExamples "-r:off": # Reenable after https://github.com/nim-lang/Nim/issues/25433
     let g = e"hello" * fin()
