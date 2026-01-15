@@ -21,9 +21,9 @@ jobs:
       - name: Setup Nim Enviroment
         uses: actions/checkout@master
 
-      - uses: jiro4989/setup-nim-action@v1
+      - uses: iffy/install-nim@v5
         with:
-          nim-version: ${{ matrix.nim }}
+          version: ${{ matrix.nim }}
 
       - name: Update nimble
         run: nimble update
