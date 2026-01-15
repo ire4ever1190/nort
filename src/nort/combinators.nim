@@ -300,6 +300,24 @@ proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
       if res.isSome():
         return res
 
+proc `|`*[T](left, right: Combinator[T]): Combinator[T] =
+  ## This picks either left or right, returning the value that matches
+  runnableExamples:
+    let g = e"yes" | e"no"
+    assert g.match("yes").get() == "yes"
+    assert g.match("no").get() == "no"
+
+  any(left, right)
+
+proc `|`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[Void] =
+  ## This picks either left or right. Since they are different types, it erases the type
+  runnableExamples:
+    let g = digit() | e"hello" | e'L'
+    assert g.test("hello")
+    assert not g.test("a")
+
+  any(-left, -right)
+
 proc noop*[T](p: var Parser): Option[Option[T]] =
   ## Combinator that always matches. Since this version is typed,
   ## the data return is `none(T)` (but the parsing does pass)
