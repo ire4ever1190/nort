@@ -104,17 +104,18 @@ proc expect*[T](values: HashSet[T]): Combinator[T] =
       expect(value)
   return any(possible)
 
-proc digit*(p: var Parser): Option[int] =
+proc digit*(): Combinator[int] =
   ## Expects a digit
   runnableExamples:
-    assert digit.match("123").get() == 123
-  let init = p.pos
-  var res: int
-  p.pos += p.data.parseInt(res, start=init)
+    assert digit().match("123").get() == 123
+  return proc (p: var Parser): Option[int] =
+    let init = p.pos
+    var res: int
+    p.pos += p.data.parseInt(res, start=init)
 
-  # If the position progressed, then the parsing was a success
-  if p.pos == init: none(int)
-  else: some(res)
+    # If the position progressed, then the parsing was a success
+    if p.pos == init: none(int)
+    else: some(res)
 
 proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
@@ -143,7 +144,7 @@ proc prec[L, R, T](p: var Parser, left: Combinator[L], right: Combinator[R], joi
 proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
   ## Joins two combinators along with their outputs
   runnableExamples:
-    let g = any(e"won", e"lost")$outcome * e" " * digit$score
+    let g = any(e"won", e"lost")$outcome * e" " * digit()$score
 
     let res = g.match("won 9").get()
     # The names were merged into a single tuple
@@ -161,8 +162,8 @@ proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Co
 
 proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[B] =
   ## Joins two combinators
-  return proc (p: var Parser): Option[merge(A, B)] =
-    p.prec(left, right) do (l: A, r: B) -> A: r
+  return proc (p: var Parser): Option[B] =
+    p.prec(left, right) do (l: A, r: B) -> B: r
 
 template `*`*(left: Combinator, right: Combinator): Combinator[Void] =
   ## Joins two combinators. Types are erased since we don't know what to do
@@ -256,16 +257,19 @@ proc test*[T](comb: Combinator[T], data: sink string): bool =
   var p = Parser(data: data)
   comb(p).isSome()
 
-proc fin*(p: var Parser): Option[Void] =
+# You'll see functions like this that don't need to be functions.
+# It helps with errors if the type system knows its a Combinator, compiler should inline it
+proc fin(): Combinator[Void] {.inline.} =
   ## Expects there to be no more data
   runnableExamples "-r:off": # Reenable after https://github.com/nim-lang/Nim/issues/25433
-    let g = e"hello" * fin
+    let g = e"hello" * fin()
 
     assert g.test("hello")
     assert not g.test("hello world")
 
-  if p.eof(): some(Void())
-  else: none(Void)
+  return proc (p: var Parser): Option[Void] =
+    if p.eof(): some(Void())
+    else: none(Void)
 
 proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
   ## Named branch of what to expect
@@ -414,7 +418,7 @@ proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
 proc sep*[T](comb: Combinator[T], sep: string): Combinator[seq[T]] =
   ## Matches a zero or more of `comb` that is separate by `sep`
   runnableExamples:
-    let g = digit.sep(", ")
+    let g = digit().sep(", ")
     assert g.match("1, 2, 3").get() == @[1, 2, 3]
 
   # We need to convert it to a tuple and then unwrap it or else we lose the types

@@ -11,9 +11,6 @@ type
   Combinator*[T] = proc (p: var Parser): Option[T] {.closure.}
     ## Parser that optionally returns data
 
-
-
-
 proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
   return proc (p: var Parser): Option[(T,)] =
     let val = comb(p)

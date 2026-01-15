@@ -18,8 +18,8 @@ runnableExamples:
     # `expect` is the main function for mapping
     name = +(expect IdentChars) # Username is anything that isn't Whitespace
     # `e` is an alias for expect
-    attempts = e"attempts:" * digit$count # We can capture and store in a name with `$`
-    failed = e"failed:" * digit$count
+    attempts = e"attempts:" * digit()$count # We can capture and store in a name with `$`
+    failed = e"failed:" * digit()$count
     # `*` is used to join items
     line = name$name * (e' ') * attempts$attempt * (e' ') * failed$failure
     # Just like regex, * and + can be used to repeat items. They need to be
