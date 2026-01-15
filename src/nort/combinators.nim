@@ -63,11 +63,11 @@ proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] 
   return proc (p: var Parser): Option[T] =
     comb(p).filter(check)
 
-proc any*(p: var Parser): Option[char] =
+proc dot*: Combinator[char] =
   ## Parses any character
   runnableExamples:
-    assert any.match("abc") == some('a')
-  return p.eat()
+    assert dot().match("abc") == some('a')
+  return proc (p: var Parser): Option[char] = p.eat()
 
 proc expect*(expect: set[char]): Combinator[char] =
   ## Expects a set of characters, returns the matched value
