@@ -17,5 +17,7 @@ proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
     if val.isSome():
       return some((val.get(),))
 
+proc bindTo*[T, R](comb: Combinator[Void]) {.error: "Can't attach a variable name to a `Void` combinator".}
+
 template `$`*[T](comb: Combinator[T], name: untyped): untyped =
   bindTo[T, tuple[name: T]](comb)
