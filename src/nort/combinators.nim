@@ -433,14 +433,14 @@ proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
   let wrapped = comb.map() do (inp: T) -> Option[T]: some(inp)
   return any(wrapped, Combinator[Option[T]](noop[T]))
 
-proc sep*[T](comb: Combinator[T], sep: string): Combinator[seq[T]] =
+proc sep*[T](comb: Combinator[T], sep: Combinator): Combinator[seq[T]] =
   ## Matches a zero or more of `comb` that is separate by `sep`
   runnableExamples:
-    let g = digit().sep(", ")
+    let g = digit().sep(e", ")
     assert g.match("1, 2, 3").get() == @[1, 2, 3]
 
   # We need to convert it to a tuple and then unwrap it or else we lose the types
-  return * (comb * -(?e(sep)))
+  return * (comb * -(?sep))
 
 proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (without consuming target)
