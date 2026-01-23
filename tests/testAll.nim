@@ -40,7 +40,7 @@ test "Can match string":
   }
 
 test "Can parse until target":
-  let g = any.until(e"hello")
+  let g = dot().until(e"hello")
   g.check {
     "abcdhello": "abcd",
     "hello": "",
