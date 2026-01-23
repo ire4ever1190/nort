@@ -446,7 +446,7 @@ proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (without consuming target)
   *(not target * comb)
 
-proc untilIncl*[T](comb: Combinator[T], target: Combinator): Combinator[T] =
+proc untilIncl*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (consumes target)
   comb.until(target) * -target
 
@@ -456,4 +456,4 @@ proc between*[T, L, R](comb: Combinator[T], left: Combinator[L], right: Combinat
     let g = digit().between(e'[', e']')
     assert g.match("[1]").get() == 1
 
-  return -left * comb * -right
+  -left * comb * -right
