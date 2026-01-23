@@ -21,3 +21,15 @@ proc bindTo*[T, R](comb: Combinator[Void]) {.error: "Can't attach a variable nam
 
 template `$`*[T](comb: Combinator[T], name: untyped): untyped =
   bindTo[T, tuple[name: T]](comb)
+
+proc trace*[T](g: Combinator[T]): Combinator[T] =
+  ## Utility function that echos the result of a combinator
+  return proc (p: var Parser): Option[T] =
+    let start = p.pos
+    result = g(p)
+    if result.isNone:
+      echo "Failed to parse"
+    else:
+      echo "Parsed: " & p.data[start .. p.pos]
+      when T isnot Void:
+        echo "Got: " & result.get()
