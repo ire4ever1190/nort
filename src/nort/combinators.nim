@@ -446,6 +446,10 @@ proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (without consuming target)
   *(not target * comb)
 
+proc untilIncl*[T](comb: Combinator[T], target: Combinator): Combinator[T] =
+  ## Parses `comb` until it encounters `target` (consumes target)
+  comb.until(target) * -target
+
 proc between*[T, L, R](comb: Combinator[T], left: Combinator[L], right: Combinator[R]): Combinator[T] =
   ## Checks that `comb` appears after `left` and before `right`
   runnableExamples:
