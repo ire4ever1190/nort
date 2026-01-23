@@ -30,6 +30,6 @@ proc trace*[T](g: Combinator[T]): Combinator[T] =
     if result.isNone:
       echo "Failed to parse"
     else:
-      echo "Parsed: " & p.data[start .. p.pos]
+      echo "Parsed: " & p.data[start ..< p.pos]
       when T isnot Void:
-        echo "Got: " & result.get()
+        echo "Got: " & $result.get()

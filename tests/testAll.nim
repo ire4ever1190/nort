@@ -111,3 +111,8 @@ test "Can join unrelated types":
   g.check {
     "(123": true
   }
+
+test "Trace prints result":
+  # Smoke test to ensure the function compiles
+  let g = digit().trace().between(e'[', e']')
+  check g.match("[100]").isSome()
