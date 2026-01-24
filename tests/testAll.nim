@@ -74,6 +74,19 @@ test "Can match +":
     "c": true
   }
 
+test "Can chain Void":
+  let g = +(-e"hello")
+  g.check {
+    "hellohello": true,
+    "hello": true
+  }
+
+test "Chain non strings":
+  let g = +(digit() * -e',')
+  g.check {
+    "1,2,3,4,": @[1, 2, 3, 4]
+  }
+
 test "fin matches end of string":
   let g = e"hello" * fin()
   g.check {

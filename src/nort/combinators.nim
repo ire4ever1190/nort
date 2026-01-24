@@ -5,11 +5,6 @@ export options
 import ./[base, parser, utils, union]
 export union, base, sets, options
 
-type
-  Chain*[T] = (when T is char: string else: seq[T])
-    ## Represents chaining combinators together. Characters
-    ## are joined into strings but other types just become `seq`
-
 #
 # Internal functions
 #
@@ -382,15 +377,15 @@ proc `not`*(comb: Combinator): Combinator[Void] =
     else:
       some(Void())
 
-proc `*`*[T](comb: Combinator[T]): Combinator[seq[T]] =
+proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match zero or more times. Returns all matches
   runnableExamples:
     let g = *e"hey"
     assert g.test("")
     assert g.test("heyhey")
 
-  return proc (p: var Parser): Option[seq[T]] =
-    var found: seq[T]
+  return proc (p: var Parser): Option[Chain[T]] =
+    var found: Chain[T]
     while true:
       let res = p.attempt(comb)
       if res.isSome():

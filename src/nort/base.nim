@@ -11,6 +11,10 @@ type
   Combinator*[T] = proc (p: var Parser): Option[T] {.closure.}
     ## Parser that optionally returns data
 
+  Chain*[T] = (when T is char: string elif T is Void: Void else: seq[T])
+    ## Represents chaining combinators together. Characters
+    ## are joined into strings but other types just become `seq`
+
 proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
   return proc (p: var Parser): Option[(T,)] =
     let val = comb(p)
@@ -33,3 +37,7 @@ proc trace*[T](g: Combinator[T]): Combinator[T] =
       echo fmt"Parsed: '{p.data[start ..< p.pos]}'"
       when T isnot Void:
         echo fmt"Got: '{result.get()}'"
+
+
+# Functions to make Void compose with Chain
+proc add*(coll: var Chain[Void], val: Void) = discard
