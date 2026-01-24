@@ -1,5 +1,5 @@
 ## This is internal library code to set everything up
-import std/[options, macros]
+import std/[options, macros, strformat]
 export options
 
 import ./parser
@@ -30,6 +30,6 @@ proc trace*[T](g: Combinator[T]): Combinator[T] =
     if result.isNone:
       echo "Failed to parse"
     else:
-      echo "Parsed: " & p.data[start ..< p.pos]
+      echo fmt"Parsed: '{p.data[start ..< p.pos]}'"
       when T isnot Void:
-        echo "Got: " & $result.get()
+        echo fmt"Got: '{result.get()}'"
