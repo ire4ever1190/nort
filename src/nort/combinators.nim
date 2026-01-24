@@ -457,3 +457,13 @@ proc between*[T, L, R](comb: Combinator[T], left: Combinator[L], right: Combinat
     assert g.match("[1]").get() == 1
 
   -left * comb * -right
+
+proc occurs*[T](comb: Combinator[T]): Combinator[bool] =
+  ## Returns true if `comb` occurs, false otherwise
+  runnableExamples:
+    let g = digit() * occurs(e';')$semicolon
+
+    assert g.match("100;").get().semicolon
+    assert not g.match("100").get().semicolon
+
+  (?comb).map(it => it.isSome)
