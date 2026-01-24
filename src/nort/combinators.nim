@@ -444,10 +444,23 @@ proc sep*[T](comb: Combinator[T], sep: Combinator): Combinator[seq[T]] =
 
 proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (without consuming target)
+  runnableExamples:
+    let g = dot().untilIncl(e"world")
+    assert g.match("helloworld").get() == "hello"
+    # world isn't eaten, so we still need to consume it to continue
+    assert (g * e"world").test("helloworld")
+
   *(not target * comb)
 
 proc untilIncl*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (consumes target)
+  runnableExamples:
+    let g = dot().untilIncl(e"world")
+    # world is eaten, but not parsed
+    assert g.match("helloworld").get() == "hello"
+    # world is eaten, so we don't need to get it after
+    assert not (g * e"world").test("helloworld")
+
   comb.until(target) * -target
 
 proc between*[T, L, R](comb: Combinator[T], left: Combinator[L], right: Combinator[R]): Combinator[T] =
