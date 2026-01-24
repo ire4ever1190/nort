@@ -67,7 +67,7 @@ proc dot*: Combinator[char] =
   ## Parses any character
   runnableExamples:
     assert dot().match("abc") == some('a')
-  return proc (p: var Parser): Option[char] = p.eat()
+  return parser.eat
 
 proc expect*(expect: set[char]): Combinator[char] =
   ## Expects a set of characters, returns the matched value
@@ -445,7 +445,7 @@ proc sep*[T](comb: Combinator[T], sep: Combinator): Combinator[seq[T]] =
 proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (without consuming target)
   runnableExamples:
-    let g = dot().untilIncl(e"world")
+    let g = dot().until(e"world")
     assert g.match("helloworld").get() == "hello"
     # world isn't eaten, so we still need to consume it to continue
     assert (g * e"world").test("helloworld")
