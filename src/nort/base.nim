@@ -12,8 +12,10 @@ type
     ## Parser that optionally returns data
 
   Chain*[T] = (when T is char: string elif T is Void: Void else: seq[T])
-    ## Represents chaining combinators together. Characters
-    ## are joined into strings but other types just become `seq`
+    ## Represents how types get chained together when using repition like `+` and `*`
+    ## - `char` becomes a `string`
+    ## - `Void` stays `Void`, it doesn't make sense to join these
+    ## - everything else gets joined in a sequence
 
 proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
   return proc (p: var Parser): Option[(T,)] =
