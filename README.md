@@ -1,6 +1,6 @@
 # Nort
 
-[docs](https://ire4ever1190.github.io/nort/develop)
+[docs](https://ire4ever1190.github.io/nort/develop/nort)
 
 Parser combination library that is type safe, mainly just an experiment on if I could
 
