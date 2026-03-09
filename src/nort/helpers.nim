@@ -8,4 +8,4 @@ let
   nl*: Combinator[Void] = ?e('\r') * e('\n')
     ## Newline character. Is cross platform and handles both windows and linux line endings
 
-  ws*: Combinator[Void] = e(Whitespace)
+  ws*: Combinator[Void] = -e(Whitespace)
