@@ -32,3 +32,6 @@ runnableExamples:
     # Each line has a tuple with the names we binded
     if line.failure.count == 0: # Count was actually parsed as an int!
       echo fmt"{line.name} never failed!"
+
+## There are many combinators built into the library which you can find in [combinators](nort/combinators.html). There are also some
+## pre-built [helpers](nort/helpers.html) that can come in handy
