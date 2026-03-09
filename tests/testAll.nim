@@ -129,3 +129,13 @@ test "Trace prints result":
   # Smoke test to ensure the function compiles
   let g = digit().trace().between(e'[', e']')
   check g.match("[100]").isSome()
+
+import nort/helpers
+suite "Helpers":
+  test "new lines":
+    nl.check {
+      "\r\n": true,
+      "\n": true,
+      "\r": false,
+      "": false
+    }
