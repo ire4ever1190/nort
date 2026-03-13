@@ -475,3 +475,24 @@ proc occurs*[T](comb: Combinator[T]): Combinator[bool] =
     assert not g.match("100").get().semicolon
 
   (?comb).map(it => it.isSome)
+
+proc map*[R](mapping: openArray[(Combinator[Void], R)]): Combinator[R] =
+  ## Maps matching input values to output values
+  runnableExamples:
+    type
+      Greeting = enum
+        Hello
+        Goodbye
+
+    let g = map({
+      -e("Hello World"): Hello,
+      -e("Goodbye"): Goodbye
+    })
+    assert g.match("Hello World").get() == Hello
+    assert g.match("Goodbye").get() == Goodbye
+
+  let mapping = @mapping
+  return proc (parser: var Parser): Option[R] =
+    for (gram, ret) in mapping:
+      if parser.gram().isSome():
+        return some(ret)
