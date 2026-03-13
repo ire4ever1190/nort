@@ -13,3 +13,10 @@ let val = any((
 
 echo val.bar.saying #> "goodbye"
 ```
+
+
+### References
+
+Things I read while developing this
+
+- [Functional Parsers by Jeroen Fokker](http://cmsc-16100.cs.uchicago.edu/2017/Lectures/17/parsers.pdf)

@@ -55,22 +55,28 @@ proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] 
     assert g.test("hello world")
     assert not g.test("world")
 
-  return proc (p: var Parser): Option[T] =
+  return proc (p: Parser): ParseTree[T] =
     comb(p).filter(check)
 
-proc dot*: Combinator[char] =
+proc dot*(): Combinator[char] =
   ## Parses any character
   runnableExamples:
     assert dot().match("abc") == some('a')
-  return parser.eat
 
-proc expect*(expect: set[char]): Combinator[char] =
-  ## Expects a set of characters, returns the matched value
-  runnableExamples:
-    let g = expect({'a', 'b', 'c'})
-    assert g.match("a") == some('a')
-    assert g.match("d").isNone()
-  return filter(eat, it => it in expect)
+  return proc (p: Parser): ParseTree[char] =
+    p.eat().map(c => @[c]).orElse(@[])
+
+proc succeed[T](value: T): Combinator[T] =
+  ## Combinator that always successeds and never comsumes input
+  return proc (p: Parser): ParseTree[T] = @[value]
+
+proc fail(): Combinator[Void] =
+  ## Combinator that matches nothing
+  return proc (p: Parser): ParseTree[Void] = @[]
+
+proc epsilon(): Combinator[Void] =
+  ## Matches the empty string and doesn't return any input
+  return succeed(Void())
 
 proc expect*(input: char): Combinator[char] =
   ## Expects a character to appear
@@ -79,7 +85,15 @@ proc expect*(input: char): Combinator[char] =
     assert g.match("a") == some('a')
     assert g.match("b").isNone()
 
-  return expect({input})
+  return filter(dot(), it => it == input)
+
+proc expect*(expect: set[char]): Combinator[char] =
+  ## Expects a set of characters, returns the matched value
+  runnableExamples:
+    let g = expect({'a', 'b', 'c'})
+    assert g.match("a") == some('a')
+    assert g.match("d").isNone()
+  return filter(dot(), it => it in expect)
 
 proc expect*(expect: string): Combinator[string] =
   ## Expects a certain string
@@ -262,9 +276,9 @@ proc fin*(): Combinator[Void] {.inline.} =
     assert g.test("hello")
     assert not g.test("hello world")
 
-  return proc (p: var Parser): Option[Void] =
-    if p.eof(): some(Void())
-    else: none(Void)
+  return proc (p: Parser): ParseTree[Void] =
+    if p.len == 0: @[Void()]
+    else: @[]
 
 proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
   ## Named branch of what to expect

@@ -8,8 +8,17 @@ type
   Void* = object
     ## Internal type for representing a parser that returns nothing
 
-  Combinator*[T] = proc (p: var Parser): Option[T] {.closure.}
-    ## Parser that optionally returns data
+  ParseResult*[T] = tuple[parser: Parser, value: T]
+    ## Single parse result. This should return the remaining data to parse along with
+    ## the value that was returned
+
+  ParseTree*[T] = seq[ParseResult[T]]
+    ## Tree of parsed result values
+
+  Combinator*[T] = proc (p: Parser): ParseTree[T] {.closure.}
+    ## Parser that optionally returns data.
+    ## This returns all possible matches of running the parser
+    # TODO: Make this lazy
 
   Chain*[T] = (when T is char: string elif T is Void: Void else: seq[T])
     ## Represents how types get chained together when using repition like `+` and `*`
