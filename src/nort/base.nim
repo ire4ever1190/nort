@@ -57,7 +57,7 @@ proc match*[T](comb: Combinator[T], data: string): Option[T] =
   ## Checks if a string matches a pattern. Returns the first match
   let p = Parser(data: data)
   for res in comb(p):
-    return res
+    return res.value.some()
 
 iterator match*[T](comb: Combinator[T], data: string): T =
   ## Returns zero or more matches of `comb` in data
@@ -85,3 +85,12 @@ proc test*[T](comb: Combinator[T], data: sink string): bool =
     assert not g.test("bye")
 
   comb.match(data).isSome()
+
+proc lazy*[T](comb: proc (): Combinator[T]): Combinator[T] =
+  ## Makes a lazy version of `comb` that is only created when needed.
+  ## Use this when you have recursive grammars
+  var stored: Combinator[T] = nil
+  return proc (p: Parser): ParseTree[T] =
+    if stored == nil:
+      stored = comb()
+    return stored(p)

@@ -66,11 +66,11 @@ proc dot*(): Combinator[char] =
   return proc (p: Parser): ParseTree[char] =
     p.eat().map(c => @[c]).get(@[])
 
-proc succeed[T](value: T): Combinator[T] =
+proc succeed*[T](value: T): Combinator[T] =
   ## Combinator that always successeds and never comsumes input
   return proc (p: Parser): ParseTree[T] = @[(p, value)]
 
-proc fail(): Combinator[Void] =
+proc failure*(): Combinator[Void] =
   ## Combinator that matches nothing
   return proc (p: Parser): ParseTree[Void] = @[]
 
@@ -155,7 +155,7 @@ proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
   return comb.map(it => Void())
 
-proc `<*>`[L, R](left: Combinator[L], right: Combinator[R]): Combinator[tuple[left: L, right: R]] =
+proc `<*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[tuple[left: L, right: R]] =
   ## Joins two combinators and returns a tuple of both parsed values.
   ## The [*] series of operators are more user friendly by flattening the returned values
   return proc (parser: Parser): ParseTree[tuple[left: L, right: R]] =
@@ -163,12 +163,12 @@ proc `<*>`[L, R](left: Combinator[L], right: Combinator[R]): Combinator[tuple[le
       for (finalParser, rightValue) in right(newParser):
         result &= (finalParser, (leftValue, rightValue))
 
-proc `<*`[L, R](left: Combinator[L], right: Combinator[R]): Combinator[L] =
+proc `<*`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[L] =
   ## Joins two combinators but only retains the left value
   (left <*> right).map(it => it.left)
 
 
-proc `*>`[L, R](left: Combinator[L], right: Combinator[R]): Combinator[R] =
+proc `*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[R] =
   ## Joins two combinators but only retains the right value
   (left <*> right).map(it => it.right)
 
@@ -327,22 +327,7 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
     assert g.test("")
     assert g.test("heyhey")
 
-  return (comb <*> (*comb)).map(values => values.left & values.right) | succeed(newSeq[T]())
-
-proc `*`*(comb: Combinator[char]): Combinator[Chain[char]] =
-  ## Optimised version that produces a string instead of a sequence of chars
-  runnableExamples:
-    let g = *e'a'
-    assert g.match("aaaaa").get() == "aaaaa"
-    assert g.match("").get() == ""
-
-  return proc (p: var Parser): Option[string] =
-    let start = p.pos
-    while p.attempt(comb).isSome():
-      discard
-
-    # Copy it instead of joining each character
-    some(p.data[start ..< p.pos])
+  return (comb <*> (*comb)).map(values => values.left & values.right) | succeed(default(Chain[T]))
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
@@ -421,6 +406,11 @@ proc digit*(): Combinator[int] =
     result = values[1].parseInt()
     if values[0]:
       result *= -1
+
+proc rec*[T](body: proc (self: DeferredCombinator[T]): Combinator[T]): Combinator[T] =
+  let def = DeferredCombinator[T](comb: new Combinator[T])
+  def.comb[] = body(def)
+  return def.comb[]
 
 proc map*[R](mapping: openArray[(Combinator[Void], R)]): Combinator[R] =
   ## Maps matching input values to output values
