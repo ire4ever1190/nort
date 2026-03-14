@@ -32,7 +32,6 @@ func eat*(p: Parser): Option[(Parser, char)] =
 
 func continuesWith*(p: Parser, token: string): Option[(Parser, string)] =
   ## Checks if the parser continues with a string
-  let init = p.pos
-  p.pos += p.data.skip(token, start = p.pos)
-  if p.pos == init: none(string)
-  else: some((p.skip(token.len), token))
+  let matched = p.data.skip(token, start = p.pos)
+  if matched == 0: none((Parser, string))
+  else: some((p.skip(matched), token))

@@ -1,4 +1,4 @@
-import std/[options, sugar, parseutils, macros, sequtils, enumutils, strutils, setutils, sets]
+import std/[options, sugar, parseutils, macros, sequtils, enumutils, strutils, setutils, sets, sequtils]
 
 export options
 
@@ -56,7 +56,7 @@ proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] 
     assert not g.test("world")
 
   return proc (p: Parser): ParseTree[T] =
-    comb(p).filter(check)
+    comb(p).filter(res => check(res.value))
 
 proc dot*(): Combinator[char] =
   ## Parses any character
@@ -64,11 +64,11 @@ proc dot*(): Combinator[char] =
     assert dot().match("abc") == some('a')
 
   return proc (p: Parser): ParseTree[char] =
-    p.eat().map(c => @[c]).orElse(@[])
+    p.eat().map(c => @[c]).get(@[])
 
 proc succeed[T](value: T): Combinator[T] =
   ## Combinator that always successeds and never comsumes input
-  return proc (p: Parser): ParseTree[T] = @[value]
+  return proc (p: Parser): ParseTree[T] = @[(p, value)]
 
 proc fail(): Combinator[Void] =
   ## Combinator that matches nothing
@@ -102,8 +102,8 @@ proc expect*(expect: string): Combinator[string] =
     assert g.match("foo") == some("foo")
     assert g.match("bar").isNone()
 
-  return proc (p: var Parser): Option[string] =
-    p.continuesWith(expect)
+  return proc (p: Parser): ParseTree[string] =
+    p.continuesWith(expect).map(val => @[val]).get(@[])
 
 proc expect*[T](values: HashSet[T]): Combinator[T] =
   ## Expects a single value from a set of values.
@@ -113,45 +113,67 @@ proc expect*[T](values: HashSet[T]): Combinator[T] =
       expect(value)
   return any(possible)
 
-proc digit*(): Combinator[int] =
-  ## Expects a digit
+proc just*[T](comb: Combinator[T]): Combinator[T] =
+  ## Expects the combinator to fully match the input.
   runnableExamples:
-    assert digit().match("123").get() == 123
-  return proc (p: var Parser): Option[int] =
-    let init = p.pos
-    var res: int
-    p.pos += p.data.parseInt(res, start=init)
+    let g = just(e"hello")
 
-    # If the position progressed, then the parsing was a success
-    if p.pos == init: none(int)
-    else: some(res)
+    assert g.test("hello")
+    assert not g.test("hello world")
+
+  return proc (p: Parser): ParseTree[T] =
+    for res in comb(p):
+      if res.parser.len == 0: # No input left
+        result &= res
+
+# You'll see functions like this that don't need to be functions.
+# It helps with errors if the type system knows its a Combinator, compiler should inline it
+proc fin*(): Combinator[Void] {.inline.} =
+  ## Expects there to be no more data
+  runnableExamples:
+    let g = e"hello" * fin()
+
+    assert g.test("hello")
+    assert not g.test("hello world")
+
+  return proc (p: Parser): ParseTree[Void] =
+    if p.len == 0: @[(p, Void())]
+    else: @[]
+
+proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
+  ## Allows you to perform an operator on a combinators output if it passes
+  runnableExamples:
+    import std/[sugar, strutils]
+
+    let g = "hello".expect.map(toUpperAscii)
+    assert g.match("hello").get() == "HELLO"
+
+  return proc (p: Parser): ParseTree[R] =
+    comb(p).map(res => (res.parser, op(res.value)))
 
 proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
-  return proc (p: var Parser): Option[Void] =
-    if comb(p).isNone(): none(Void)
-    else: some(Void())
+  return comb.map(it => Void())
 
-proc attempt*[T](p: var Parser, comb: Combinator[T]): Option[T] =
-  ## Attempts to run a combinator. Resets the parser if it fails
-  let init = p.pos
-  result = comb(p)
-  if result.isNone():
-    p.pos = init
+proc `<*>`[L, R](left: Combinator[L], right: Combinator[R]): Combinator[tuple[left: L, right: R]] =
+  ## Joins two combinators and returns a tuple of both parsed values.
+  ## The [*] series of operators are more user friendly by flattening the returned values
+  return proc (parser: Parser): ParseTree[tuple[left: L, right: R]] =
+    for (newParser, leftValue) in left(parser):
+      for (finalParser, rightValue) in right(newParser):
+        result &= (finalParser, (leftValue, rightValue))
 
-proc prec[L, R, T](p: var Parser, left: Combinator[L], right: Combinator[R], join: proc (l: L, r: R): T): Option[T] =
-  ## Attempts to run `left`, if that successeds then it runs `right`.
-  ## If both pass then it calls `join` to merge them
-  let l = p.attempt(left)
-  if l.isNone: return none(T)
+proc `<*`[L, R](left: Combinator[L], right: Combinator[R]): Combinator[L] =
+  ## Joins two combinators but only retains the left value
+  (left <*> right).map(it => it.left)
 
-  let r = p.attempt(right)
-  if r.isNone: return none(T)
 
-  return some(join(l.get(), r.get()))
+proc `*>`[L, R](left: Combinator[L], right: Combinator[R]): Combinator[R] =
+  ## Joins two combinators but only retains the right value
+  (left <*> right).map(it => it.right)
 
 proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
-  ## Joins two combinators along with their outputs
+  ## Joins two combinators and merges the tuples together
   runnableExamples:
     let g = any(e"won", e"lost")$outcome * e" " * digit()$score
 
@@ -160,25 +182,20 @@ proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combin
     assert res.outcome == "won"
     assert res.score == 9
 
-  return proc (p: var Parser): Option[merge(A, B)] =
-    p.prec(left, right) do (l: A, r: B) -> merge(A, B):
-      join(l, r, type(result))
+  return (left <*> right).map(values => join(values.left, values.right, type(result)))
 
 proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[A] =
-  ## Joins two combinators
-  return proc (p: var Parser): Option[A] =
-    p.prec(left, right) do (l: A, r: B) -> A: l
+  ## Joins two combinators. Only returns the left combinator so named values are carried through
+  return left <* right
 
 proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[B] =
-  ## Joins two combinators
-  return proc (p: var Parser): Option[B] =
-    p.prec(left, right) do (l: A, r: B) -> B: r
+  ## Joins two combinators.  Only returns the right combinator so named values are carried through
+  return left *> right
 
 template `*`*[A, B](left: Combinator[A], right: Combinator[B]): Combinator[Void] =
   ## Joins two combinators. Types are erased since we don't know what to do
   ## with them
-  proc (p: var Parser): Option[Void] =
-    p.prec(left, right) do (l: left.T, r: right.T) -> Void: Void()
+  return -(left <*> right)
 
 proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
   ## Joins two combinators
@@ -186,8 +203,7 @@ proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
     let g = e"hello" * e" " * e"world"
     assert g.test("hello world")
 
-  return proc (p: var Parser): Option[Void] =
-    p.prec(left, right) do (l, r: Void) -> Void: Void()
+  return -(left <*> right)
 
 proc `*`*[T: not tuple](left: Combinator[T], right: Combinator[Void]): Combinator[T] =
   ## Carries a type through if the right side doesn't have one
@@ -195,8 +211,7 @@ proc `*`*[T: not tuple](left: Combinator[T], right: Combinator[Void]): Combinato
     let g = e"hello" * e" " * e"world"
     assert g.test("hello world")
 
-  return proc (p: var Parser): Option[T] =
-    p.prec(left, right) do (l: T, r: Void) -> T: l
+  left <* right
 
 proc `*`*[T](left: Combinator[Void], right: Combinator[T]): Combinator[T] =
   ## Carries a type through if the right side doesn't have one
@@ -204,81 +219,15 @@ proc `*`*[T](left: Combinator[Void], right: Combinator[T]): Combinator[T] =
     let g = e"hello" * e" " * e"world"
     assert g.test("hello world")
 
-  return proc (p: var Parser): Option[T] =
-    p.prec(left, right) do (l: Void, r: T) -> T: r
+  left *> right
 
 proc `*`*[T](left: Combinator[T], right: Combinator[Chain[T]]): Combinator[Chain[T]] =
   ## Joins two combinators, merging the results of both
-  return proc (p: var Parser): Option[Chain[T]] =
-    p.prec(left, right) do (l: T, r: Chain[T]) -> Chain[T]: l & r
+  (left <*> right).map(values => values.left & values.right)
 
 proc `*`*[T](left: Combinator[Chain[T]], right: Combinator[T]): Combinator[Chain[T]] =
   ## Joins two combinators, merging the results of both
-  return proc (p: var Parser): Option[Chain[T]] =
-    p.prec(left, right) do (l: Chain[T], r: T) -> Chain[T]: l & r
-
-proc match*[T](comb: Combinator[T], data: string): Option[T] =
-  ## Checks if a string matches a pattern. Returns the matched data
-  var p = Parser(data: data)
-  comb(p)
-
-iterator match*[T](comb: Combinator[seq[T]], data: string): T =
-  ## Returns each line that is matched
-  runnableExamples:
-    # Will echo 3 phrases
-    var count = 0
-    let g = *any(e"hi", e"bye")
-    for line in g.match("hibyehi"):
-      count += 1
-      echo line
-    assert count == 3
-
-  var p = Parser(data: data)
-  let ret: typeof(comb(p)) = comb(p)
-  if ret.isSome():
-    for data in ret.get():
-      yield data
-
-iterator match*[T](comb: Combinator[T], data: string): T =
-  ## Returns zero or more matches of `comb` in data
-  runnableExamples:
-    # Will echo 3 phrases
-    var count = 0
-    let g = any(e"hi", e"bye")
-    for line in g.match("hibyehi"):
-      count += 1
-      echo line
-    assert count == 3
-
-  var p = Parser(data: data)
-  while true:
-    let ret = comb(p)
-    if ret.isNone: break
-    yield ret.get()
-
-proc test*[T](comb: Combinator[T], data: sink string): bool =
-  ## Tests if an input matches a combinator
-  runnableExamples:
-    let g = e"hello"
-    assert g.test("hello")
-    assert not g.test("bye")
-
-  var p = Parser(data: data)
-  comb(p).isSome()
-
-# You'll see functions like this that don't need to be functions.
-# It helps with errors if the type system knows its a Combinator, compiler should inline it
-proc fin*(): Combinator[Void] {.inline.} =
-  ## Expects there to be no more data
-  runnableExamples "-r:off": # Reenable after https://github.com/nim-lang/Nim/issues/25433
-    let g = e"hello" * fin()
-
-    assert g.test("hello")
-    assert not g.test("hello world")
-
-  return proc (p: Parser): ParseTree[Void] =
-    if p.len == 0: @[Void()]
-    else: @[]
+  (left <*> right).map(values => values.left & values.right)
 
 proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
   ## Named branch of what to expect
@@ -302,12 +251,11 @@ proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
     assert g.match("yes").get() == "yes"
     assert g.match("no").get() == "no"
 
+  # Just implemented as the union of all possible values
   let opts = @options
-  return proc (p: var Parser): Option[T] =
-    for opt in opts:
-      let res = p.attempt(opt)
-      if res.isSome():
-        return res
+  return proc (p: Parser): ParseTree[T] =
+    for combinator in opts:
+      result &= combinator(p)
 
 proc `|`*[T](left, right: Combinator[T]): Combinator[T] =
   ## This picks either left or right, returning the value that matches
@@ -331,17 +279,6 @@ proc noop*[T](p: var Parser): Option[Option[T]] =
   ## Combinator that always matches. Since this version is typed,
   ## the data return is `none(T)` (but the parsing does pass)
   return some(none(T))
-
-proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
-  ## Allows you to perform an operator on a combinators output if it passes
-  runnableExamples:
-    import std/[sugar, strutils]
-
-    let g = "hello".expect.map(toUpperAscii)
-    assert g.match("hello").get() == "HELLO"
-
-  return proc (p: var Parser): Option[R] =
-    comb(p).map(op)
 
 proc e*[T](val: T): Combinator[T] =
   ## Alias for [expect]
@@ -369,12 +306,6 @@ proc expect*[T: enum](e: typedesc[T]): Combinator[T] =
       $val
   return expect(possible).map(parseEnum[T])
 
-proc error*(msg: string): Combinator[Void] =
-  ## Throws an error, useful for debugging to see if
-  ## the combinator hits something
-  return proc (p: var Parser): Option[Void] =
-    raise (ref CatchableError)(msg: msg)
-
 proc `not`*(comb: Combinator): Combinator[Void] =
   ## Expects a combinator to not match. This is a negative lookahead that doesn't consume
   ## any input
@@ -383,30 +314,20 @@ proc `not`*(comb: Combinator): Combinator[Void] =
     assert not g.test("hello")
     assert g.test("goodbye")
 
-  return proc (p: var Parser): Option[Void] =
-    let start = p.pos
-    if p.attempt(comb).isSome():
-      p.pos = start # Make sure we reset
-      none(Void)
-    else:
-      some(Void())
+  return proc (p: Parser): ParseTree[Void] =
+    let results = comb(p)
+    if results.len > 0: return @[]
+    else: return @[(p, Void())]
 
 proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match zero or more times. Returns all matches
+  ## This is greedy and tries to match the most
   runnableExamples:
     let g = *e"hey"
     assert g.test("")
     assert g.test("heyhey")
 
-  return proc (p: var Parser): Option[Chain[T]] =
-    var found: Chain[T]
-    while true:
-      let res = p.attempt(comb)
-      if res.isSome():
-        found &= res.get()
-      else:
-        break
-    return some(found)
+  return (comb <*> (*comb)).map(values => values.left & values.right) | succeed(newSeq[T]())
 
 proc `*`*(comb: Combinator[char]): Combinator[Chain[char]] =
   ## Optimised version that produces a string instead of a sequence of chars
@@ -440,7 +361,7 @@ proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
     assert g.match("hello").get() == some("hello")
 
   let wrapped = comb.map() do (inp: T) -> Option[T]: some(inp)
-  return any(wrapped, Combinator[Option[T]](noop[T]))
+  return any(wrapped, epsilon().map(it => none(T)))
 
 proc sep*[T](comb: Combinator[T], sep: Combinator): Combinator[seq[T]] =
   ## Matches a zero or more of `comb` that is separate by `sep`
@@ -489,6 +410,17 @@ proc occurs*[T](comb: Combinator[T]): Combinator[bool] =
     assert not g.match("100").get().semicolon
 
   (?comb).map(it => it.isSome)
+
+proc digit*(): Combinator[int] =
+  ## Expects a digit
+  runnableExamples:
+    assert digit().match("123").get() == 123
+    assert digit().match("-123").get() == -123
+
+  (e('-').occurs() <*> +e({'0'..'9'})).map() do (values: (bool, string)) -> int:
+    result = values[1].parseInt()
+    if values[0]:
+      result *= -1
 
 proc map*[R](mapping: openArray[(Combinator[Void], R)]): Combinator[R] =
   ## Maps matching input values to output values

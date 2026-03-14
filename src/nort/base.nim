@@ -52,3 +52,36 @@ proc trace*[T](g: Combinator[T]): Combinator[T] =
 
 # Functions to make Void compose with Chain
 proc add*(coll: var Chain[Void], val: Void) = discard
+
+proc match*[T](comb: Combinator[T], data: string): Option[T] =
+  ## Checks if a string matches a pattern. Returns the first match
+  let p = Parser(data: data)
+  for res in comb(p):
+    return res
+
+iterator match*[T](comb: Combinator[T], data: string): T =
+  ## Returns zero or more matches of `comb` in data
+  runnableExamples:
+    # Will echo 3 phrases
+    var count = 0
+    let g = any(e"hi", e"bye")
+    for line in g.match("hibyehi"):
+      count += 1
+      echo line
+    assert count == 3
+
+  var p = Parser(data: data)
+  while true:
+    let ret = comb(p)
+    if ret == @[]: break
+    yield ret.value
+    p = ret.parser
+
+proc test*[T](comb: Combinator[T], data: sink string): bool =
+  ## Tests if an input matches a combinator
+  runnableExamples:
+    let g = e"hello"
+    assert g.test("hello")
+    assert not g.test("bye")
+
+  comb.match(data).isSome()
