@@ -78,6 +78,14 @@ test "fin matches end of string":
     "hello": true
   }
 
+test "Ambigious grammar works":
+  let g = e('a') * *e({'a', 'b'}) * e("ba") * fin()
+  g.check {
+    "aba": true,
+    "aaaabbbabababbababababa": true,
+    "ba": false
+  }
+
 
 test "Can match union":
   let init: Combinator[Chain[char]] = any(e("hello"), e("goodbye"))

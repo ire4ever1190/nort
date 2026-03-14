@@ -272,11 +272,6 @@ proc `|`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[Void] =
 
   any(-left, -right)
 
-proc noop*[T](p: var Parser): Option[Option[T]] =
-  ## Combinator that always matches. Since this version is typed,
-  ## the data return is `none(T)` (but the parsing does pass)
-  return some(none(T))
-
 proc e*[T](val: T): Combinator[T] =
   ## Alias for [expect]
   return expect(val)
