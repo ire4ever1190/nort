@@ -37,21 +37,22 @@ proc bindTo*[T, R](comb: Combinator[Void]) {.error: "Can't attach a variable nam
 template `$`*[T](comb: Combinator[T], name: untyped): untyped =
   bindTo[T, tuple[name: T]](comb)
 
-proc trace*[T](g: Combinator[T]): Combinator[T] =
+proc trace*[T](comb: Combinator[T]): Combinator[T] =
   ## Utility function that echos the result of a combinator
-  return proc (p: var Parser): Option[T] =
-    let start = p.pos
-    result = g(p)
-    if result.isNone:
+  return proc (p: Parser): ParseTree[T] =
+    result = comb(p)
+    if result.len == 0:
       echo "Failed to parse"
     else:
-      echo fmt"Parsed: '{p.data[start ..< p.pos]}'"
-      when T isnot Void:
-        echo fmt"Got: '{result.get()}'"
+      for path in result:
+        echo fmt"Parsed: '{p.data[p.pos ..< path.parser.pos]}'"
+        when T isnot Void:
+            echo fmt"Got: '{path.value}'"
 
 
 # Functions to make Void compose with Chain
 proc add*(coll: var Chain[Void], val: Void) = discard
+proc `&`*(a, b: Void): Void = a
 
 proc match*[T](comb: Combinator[T], data: string): Option[T] =
   ## Checks if a string matches a pattern. Returns the first match

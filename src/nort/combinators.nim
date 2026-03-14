@@ -182,20 +182,20 @@ proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combin
     assert res.outcome == "won"
     assert res.score == 9
 
-  return (left <*> right).map(values => join(values.left, values.right, type(result)))
+  (left <*> right).map(values => join(values.left, values.right, type(result)))
 
 proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[A] =
   ## Joins two combinators. Only returns the left combinator so named values are carried through
-  return left <* right
+  left <* right
 
 proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[B] =
   ## Joins two combinators.  Only returns the right combinator so named values are carried through
-  return left *> right
+  left *> right
 
 template `*`*[A, B](left: Combinator[A], right: Combinator[B]): Combinator[Void] =
   ## Joins two combinators. Types are erased since we don't know what to do
   ## with them
-  return -(left <*> right)
+  -(left <*> right)
 
 proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
   ## Joins two combinators
@@ -231,18 +231,15 @@ proc `*`*[T](left: Combinator[Chain[T]], right: Combinator[T]): Combinator[Chain
 
 proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
   ## Named branch of what to expect
-  return proc (p: var Parser): Option[result.T] =
+  return proc (p: Parser): ParseTree[result.T] =
     for field, comb in options.fieldPairs:
       block:
-        let init = p.pos
         let res = comb(p)
-        if res.isSome():
+        for path in res:
           var ret = result.T(name: makeIdent(field))
           {.cast(uncheckedAssign).}:
-            access(ret, field) = res.get()
-          return some(ret)
-        else:
-          p.pos = init
+            access(ret, field) = path.value
+          result &= (path.parser, ret)
 
 proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
   ## Passes if any of the combinators pass, this returns the value that passed
@@ -327,7 +324,8 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
     assert g.test("")
     assert g.test("heyhey")
 
-  return (comb <*> (*comb)).map(values => values.left & values.right) | succeed(default(Chain[T]))
+  # The right recursion will make this find the longest match first
+  (comb <*> lazy(() => *comb)).map(values => values.left & values.right) | succeed(default(Chain[T]))
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
@@ -406,11 +404,6 @@ proc digit*(): Combinator[int] =
     result = values[1].parseInt()
     if values[0]:
       result *= -1
-
-proc rec*[T](body: proc (self: DeferredCombinator[T]): Combinator[T]): Combinator[T] =
-  let def = DeferredCombinator[T](comb: new Combinator[T])
-  def.comb[] = body(def)
-  return def.comb[]
 
 proc map*[R](mapping: openArray[(Combinator[Void], R)]): Combinator[R] =
   ## Maps matching input values to output values
