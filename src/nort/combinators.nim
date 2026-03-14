@@ -182,7 +182,7 @@ proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combin
     assert res.outcome == "won"
     assert res.score == 9
 
-  (left <*> right).map(values => join(values.left, values.right, type(result)))
+  (left <*> right).map(values => join(values.left, values.right, type(merge(A, B))))
 
 proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[A] =
   ## Joins two combinators. Only returns the left combinator so named values are carried through
@@ -416,7 +416,7 @@ proc map*[R](mapping: openArray[(Combinator[Void], R)]): Combinator[R] =
     assert g.match("Goodbye").get() == Goodbye
 
   let mapping = @mapping
-  return proc (parser: var Parser): Option[R] =
+  return proc (parser: Parser): ParseTree[R] =
     for (gram, ret) in mapping:
-      if parser.gram().isSome():
-        return some(ret)
+      for res in (gram *> succeed(ret))(parser):
+        result &= res

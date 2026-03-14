@@ -28,7 +28,7 @@ runnableExamples:
 
   echo name.match("jgod1")
 
-  for line in everything.match(data):
+  for line in everything.match(data).get():
     # Each line has a tuple with the names we binded
     if line.failure.count == 0: # Count was actually parsed as an int!
       echo fmt"{line.name} never failed!"

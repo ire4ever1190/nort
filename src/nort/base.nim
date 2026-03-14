@@ -27,10 +27,9 @@ type
     ## - everything else gets joined in a sequence
 
 proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
-  return proc (p: var Parser): Option[(T,)] =
-    let val = comb(p)
-    if val.isSome():
-      return some((val.get(),))
+  return proc (p: Parser): ParseTree[(T,)] =
+    for val in comb(p):
+      result &= (val.parser, (val.value,))
 
 proc bindTo*[T, R](comb: Combinator[Void]) {.error: "Can't attach a variable name to a `Void` combinator".}
 
@@ -60,27 +59,11 @@ proc match*[T](comb: Combinator[T], data: string): Option[T] =
   for res in comb(p):
     return res.value.some()
 
-iterator match*[T](comb: Combinator[T], data: string): T =
-  ## Returns zero or more matches of `comb` in data
-  runnableExamples:
-    # Will echo 3 phrases
-    var count = 0
-    let g = any(e"hi", e"bye")
-    for line in g.match("hibyehi"):
-      count += 1
-      echo line
-    assert count == 3
-
-  var p = Parser(data: data)
-  while true:
-    let ret = comb(p)
-    if ret == @[]: break
-    yield ret.value
-    p = ret.parser
-
 proc test*[T](comb: Combinator[T], data: sink string): bool =
   ## Tests if an input matches a combinator
   runnableExamples:
+    import nort
+
     let g = e"hello"
     assert g.test("hello")
     assert not g.test("bye")
@@ -90,6 +73,19 @@ proc test*[T](comb: Combinator[T], data: sink string): bool =
 proc lazy*[T](comb: proc (): Combinator[T]): Combinator[T] =
   ## Makes a lazy version of `comb` that is only created when needed.
   ## Use this when you have recursive grammars
+  runnableExamples:
+    import nort
+    import std/sugar
+
+    proc paran(): Combinator[int] =
+      ## Combinator that returns the nesting of paranthesis
+      # We need `lazy` here or else it would go into an infinite loop calling itself
+      lazy(paran).between(e'(', e')').map(count => count + 1) | succeed(0)
+
+    let g = paran()
+    assert g.match("(())").get() == 2
+    assert g.match("").get() == 0
+
   var stored: Combinator[T] = nil
   return proc (p: Parser): ParseTree[T] =
     if stored == nil:
