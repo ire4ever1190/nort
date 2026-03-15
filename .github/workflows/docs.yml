@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - devel
+      - fix/docs
 
 jobs:
   deploy:
@@ -19,9 +20,10 @@ jobs:
         with:
           nim-version: devel
 
+      - run: nimble dump --json | jq .
       - name: "Build documentation"
         uses: ire4ever1190/nim-docs-action@v2
         with:
           main-file: "src/nort.nim"
-          deploy: "pages"
+          # deploy: "pages"
           versions: "stable HEAD"
