@@ -15,12 +15,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: nim-lang/setup-nimble-action@v1
+      - name: "Setup nim"
+        uses: jiro4989/setup-nim-action@v1
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          nim-version: devel
 
+      - run: nimble --useSystemNim dump --json
       - name: "Build documentation"
-        uses: ire4ever1190/nim-docs-action@fix/nim-download-prompt
+        uses: ire4ever1190/nim-docs-action@master
         with:
           main-file: "src/nort.nim"
           # deploy: "pages"
