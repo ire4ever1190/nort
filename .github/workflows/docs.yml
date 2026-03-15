@@ -15,10 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Setup nim"
-        uses: jiro4989/setup-nim-action@v1
+      - uses: nim-lang/setup-nimble-action@v1
         with:
-          nim-version: devel
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - run: nimble dump --json
       - run: nimble dump --json
