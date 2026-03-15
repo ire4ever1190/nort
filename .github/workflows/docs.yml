@@ -21,6 +21,7 @@ jobs:
           nim-version: devel
 
       - run: nimble dump --json
+      - run: nimble dump --json
       - name: "Build documentation"
         uses: ire4ever1190/nim-docs-action@v2
         with:
