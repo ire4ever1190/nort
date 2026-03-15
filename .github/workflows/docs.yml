@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - devel
-      - fix/docs
 
 jobs:
   deploy:
@@ -17,13 +16,11 @@ jobs:
 
       - name: Install Nim
         uses: iffy/install-nim@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: nimble --useSystemNim dump --json
       - name: "Build documentation"
-        uses: ire4ever1190/nim-docs-action@master
+        uses: ire4ever1190/nim-docs-action@v2
         with:
           main-file: "src/nort.nim"
-          # deploy: "pages"
+          deploy: "pages"
           versions: "stable HEAD"
