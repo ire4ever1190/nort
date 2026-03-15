@@ -14,11 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: "Setup nim"
-        uses: jiro4989/setup-nim-action@v1
-        with:
-          nim-version: devel
+      - name: Install Nim
+        uses: iffy/install-nim@v5
 
+      - run: nimble --useSystemNim dump --json
       - name: "Build documentation"
         uses: ire4ever1190/nim-docs-action@v2
         with:
