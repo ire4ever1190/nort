@@ -38,3 +38,9 @@ macro merge*(a: typedesc[not tuple], b: typedesc[tuple]): typedesc =
 macro merge*(a: typedesc[tuple], b: typedesc[not tuple]): typedesc =
   ## Just returns `a` since we don't merge tuples with single types
   return a
+
+
+template yieldfrom*[T](iter: iterable[T]) =
+  ## Yields every remaining item in `iter`
+  for item in iter:
+    yield item

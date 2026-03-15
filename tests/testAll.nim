@@ -5,6 +5,14 @@ import nort/base
 
 import ./utils
 
+test "Can match a character":
+  let g = dot()
+  g.check {
+    "a": 'a',
+    "b": 'b',
+    "cd": 'c'
+  }
+
 test "Can match digit":
   let g = digit()
   g.check {
