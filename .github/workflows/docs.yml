@@ -19,10 +19,8 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: nimble dump --json
-      - run: nimble dump --json
       - name: "Build documentation"
-        uses: ire4ever1190/nim-docs-action@v2
+        uses: ire4ever1190/nim-docs-action@fix/nim-download-prompt
         with:
           main-file: "src/nort.nim"
           # deploy: "pages"
