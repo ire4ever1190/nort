@@ -361,6 +361,59 @@ proc sep*[T](comb: Combinator[T], sep: Combinator): Combinator[seq[T]] =
   # We need to convert it to a tuple and then unwrap it or else we lose the types
   *(comb <* ?sep)
 
+proc listOf*[T](comb: Combinator[T], sep: Combinator): Combinator[T] =
+  ## Matches one or more of `comb` that is separate by `sep`
+  return comb * comb.sep(sep)
+
+type Reducer*[T, S] = proc (left: T, middle: S, right: T): T
+  ## Operation that reduces left and right depending on the middle value
+
+proc chainl*[T, S](comb: Combinator[T], sep: Combinator[S], combine: Reducer[T, S]): Combinator[T] =
+  ## Like [sep] or [listOf] except performs operations on the separaters. Use this when the separaters have
+  ## some special meaning
+  runnableExamples:
+    let
+      num = digit()
+      op = any(e'+', e'*', e'-', e'/')
+      expr = chainl(num, op) do (l: int, op: char, r: int) -> int:
+        case op
+        of '+': l + r
+        of '*': l * r
+        of '-': l - r
+        of '/': int(l / r)
+        else: raise (ref Exception)(msg: "How?")
+
+    assert expr.match("1+2+3*4").get() == 24
+
+  (comb <*> *(sep <*> comb)).map() do (matches: (T, seq[(S, T)])) -> T:
+    let (elem, seps) = matches
+    result = elem
+    for (sep, item) in seps:
+      result = combine(result, sep, item)
+
+proc chainr*[T, S](comb: Combinator[T], sep: Combinator[S], combine: Reducer[T, S]): Combinator[T] =
+  ## Like [chainl] but applies operations from right to left
+  runnableExamples:
+    let
+      num = digit()
+      op = any(e'+', e'*', e'-', e'/')
+      expr = chainr(num, op) do (l: int, op: char, r: int) -> int:
+        case op
+        of '+': l + r
+        of '*': l * r
+        of '-': l - r
+        of '/': int(l / r)
+        else: raise (ref Exception)(msg: "How?")
+
+    assert expr.match("1+2+3*4").get() == 15
+
+  (comb <*> ?(sep <*> lazy(() => chainr(comb, sep, combine)))).map() do (match: (T, Option[(S, T)])) -> T:
+    let (elem, recurse) = match
+    result = elem
+    if recurse.isSome:
+      let (sep, item) = recurse.get()
+      result = combine(result, sep, item)
+
 proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
   ## Parses `comb` until it encounters `target` (without consuming target)
   runnableExamples:
