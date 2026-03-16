@@ -5,6 +5,14 @@ import nort/base
 
 import ./utils
 
+test "Can match a character":
+  let g = dot()
+  g.check {
+    "a": 'a',
+    "b": 'b',
+    "cd": 'c'
+  }
+
 test "Can match digit":
   let g = digit()
   g.check {
@@ -110,6 +118,14 @@ test "Negation matches":
     "world": true,
     "hello": false
   }
+
+suite "ReDoS":
+  # Series of grammars to test how we hold up against ReDoS attacks
+  # Lazy evaluation should help with most
+  test "Any amount of any amount of a's":
+    # If we didn't have lazy evaluation, this would fail to parse
+    let redos = +(+(e'a'))
+    assert redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
 
 test "Can join unrelated types":
   let g = e('(') * digit()
