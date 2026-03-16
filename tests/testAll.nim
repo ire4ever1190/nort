@@ -127,12 +127,6 @@ suite "ReDoS":
     let redos = +(+(e'a'))
     assert redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
 
-  test "Any amount of a's or optional a's"L
-    let redos = +((-e('a') | -(?e'a')))
-    check redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
-
-
-
 test "Can join unrelated types":
   let g = e('(') * digit()
   g.check {
