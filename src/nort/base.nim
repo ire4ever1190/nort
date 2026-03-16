@@ -40,9 +40,11 @@ proc initCombinator*[T](factory: proc (): Explorer[T]): Combinator[T] =
   Combinator[T](iter: factory)
 
 proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
-  return proc (p: Parser): ParseTree[(T,)] =
-    for val in comb(p):
-      result &= (val.parser, (val.value,))
+  return initCombinator(proc (): Explorer[R] =
+    iterator (p: Parser): ParseResult[(T,)] {.closure.} =
+      for val in comb.results(p):
+        yield (val.parser, (val.value,))
+  )
 
 proc bindTo*[T, R](comb: Combinator[Void]) {.error: "Can't attach a variable name to a `Void` combinator".}
 
