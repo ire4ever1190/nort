@@ -31,7 +31,8 @@ type
 
 iterator results*[T](comb: Combinator[T], parser: Parser): ParseResult[T] =
   ## Yields all the iteration results of a combinator
-  for item in comb.iter()(parser):
+  let iter = comb.iter()
+  for item in iter(parser):
     yield item
 
 proc initCombinator*[T](factory: proc (): Explorer[T]): Combinator[T] =

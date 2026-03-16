@@ -119,10 +119,19 @@ test "Negation matches":
     "hello": false
   }
 
-test "ReDoS":
-  # If we didn't have lazy evaluation, this would fail to parse
-  let redos = +(+(e'a'))
-  echo redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+suite "ReDoS":
+  # Series of grammars to test how we hold up against ReDoS attacks
+  # Lazy evaluation should help with most
+  test "Any amount of any amount of a's":
+    # If we didn't have lazy evaluation, this would fail to parse
+    let redos = +(+(e'a'))
+    assert redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
+
+  test "Any amount of a's or optional a's"L
+    let redos = +((-e('a') | -(?e'a')))
+    check redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
+
+
 
 test "Can join unrelated types":
   let g = e('(') * digit()
