@@ -55,29 +55,38 @@ proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] 
     assert g.test("hello world")
     assert not g.test("world")
 
-  return initCombinator(iterator (p: Parser): ParseResult[T] {.closure.} =
-    for res in comb.results(p):
-      if check(res.value):
-        yield res)
+  return initCombinator(proc (): Explorer[T] =
+    iterator (p: Parser): ParseResult[T] {.closure.} =
+      for res in comb.results(p):
+        if check(res.value):
+          yield res
+  )
 
 proc dot*(): Combinator[char] =
   ## Parses any character
   runnableExamples:
     assert dot().match("abc") == some('a')
 
-  return initCombinator(iterator (p: Parser): ParseResult[char] {.closure.} =
-    let res = p.eat()
-    if res.isSome:
-      yield res.get()
+  return initCombinator(proc (): Explorer[char] =
+    iterator (p: Parser): ParseResult[char] {.closure.} =
+      let res = p.eat()
+      if res.isSome:
+        yield res.get()
   )
 
 proc succeed*[T](value: T): Combinator[T] =
   ## Combinator that always successeds and never comsumes input
-  return initCombinator(iterator (p: Parser): ParseResult[T] {.closure.} = yield (p, value))
+  return initCombinator(proc (): Explorer[T] =
+    iterator (p: Parser): ParseResult[T] {.closure.} =
+      yield (p, value)
+  )
 
 proc failure*(): Combinator[Void] =
   ## Combinator that matches nothing
-  return initCombinator(iterator (p: Parser): ParseResult[Void] {.closure.} = discard)
+  return initCombinator(proc (): Explorer[Void] =
+    iterator (p: Parser): ParseResult[Void] {.closure.} =
+      discard
+  )
 
 proc epsilon(): Combinator[Void] =
   ## Matches the empty string and doesn't return any input
@@ -107,10 +116,12 @@ proc expect*(expect: string): Combinator[string] =
     assert g.match("foo") == some("foo")
     assert g.match("bar").isNone()
 
-  return initCombinator(iterator (p: Parser): ParseResult[string] {.closure.} =
-    let res = p.continuesWith(expect)
-    if res.isSome():
-      yield res.get())
+  return initCombinator(proc (): Explorer[string] =
+    iterator (p: Parser): ParseResult[string] {.closure.} =
+      let res = p.continuesWith(expect)
+      if res.isSome():
+        yield res.get()
+  )
 
 proc expect*[T](values: HashSet[T]): Combinator[T] =
   ## Expects a single value from a set of values.
@@ -128,10 +139,12 @@ proc just*[T](comb: Combinator[T]): Combinator[T] =
     assert g.test("hello")
     assert not g.test("hello world")
 
-  return initCombinator(iterator (p: Parser): ParseResult[T] {.closure.} =
-    for res in comb.results(p):
-      if res.parser.len == 0: # No input left
-        yield res)
+  return initCombinator(proc (): Explorer[T] =
+    iterator (p: Parser): ParseResult[T] {.closure.} =
+      for res in comb.results(p):
+        if res.parser.len == 0: # No input left
+          yield res
+  )
 
 # You'll see functions like this that don't need to be functions.
 # It helps with errors if the type system knows its a Combinator, compiler should inline it
@@ -143,9 +156,11 @@ proc fin*(): Combinator[Void] {.inline.} =
     assert g.test("hello")
     assert not g.test("hello world")
 
-  return initCombinator(iterator (p: Parser): ParseResult[Void] {.closure.}=
-    if p.len == 0:
-      yield (p, Void()))
+  return initCombinator(proc (): Explorer[Void] =
+    iterator (p: Parser): ParseResult[Void] {.closure.}=
+      if p.len == 0:
+        yield (p, Void())
+  )
 
 proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
   ## Allows you to perform an operator on a combinators output if it passes
@@ -155,9 +170,11 @@ proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
     let g = "hello".expect.map(toUpperAscii)
     assert g.match("hello").get() == "HELLO"
 
-  return initCombinator(iterator (p: Parser): ParseResult[R] {.closure.} =
-    for res in comb.results(p):
-      yield (res.parser, op(res.value)))
+  return initCombinator(proc (): Explorer[R] =
+    iterator (p: Parser): ParseResult[R] {.closure.} =
+      for res in comb.results(p):
+        yield (res.parser, op(res.value))
+    )
 
 proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
@@ -166,10 +183,11 @@ proc `-`*(comb: Combinator): Combinator[Void] =
 proc `<*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[tuple[left: L, right: R]] =
   ## Joins two combinators and returns a tuple of both parsed values.
   ## The [*] series of operators are more user friendly by flattening the returned values
-  return initCombinator(iterator (parser: Parser): ParseResult[tuple[left: L, right: R]] {.closure.} =
-    for (newParser, leftValue) in left.results(parser):
-      for (finalParser, rightValue) in right.results(newParser):
-        yield (finalParser, (leftValue, rightValue))
+  return initCombinator(proc (): Explorer[tuple[left: L, right: R]] =
+    iterator (parser: Parser): ParseResult[tuple[left: L, right: R]] {.closure.} =
+      for (newParser, leftValue) in left.results(parser):
+        for (finalParser, rightValue) in right.results(newParser):
+          yield (finalParser, (leftValue, rightValue))
   )
 
 proc `<*`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[L] =
@@ -240,14 +258,16 @@ proc `*`*[T](left: Combinator[Chain[T]], right: Combinator[T]): Combinator[Chain
 
 proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
   ## Named branch of what to expect
-  return initCombinator(iterator (p: Parser): ParseResult[result.T] {.closure.} =
-    for field, comb in options.fieldPairs:
-      block:
-        for path in comb(p):
-          var ret = result.T(name: makeIdent(field))
-          {.cast(uncheckedAssign).}:
-            access(ret, field) = path.value
-          yield (path.parser, ret)
+  type Ret = result.T
+  return initCombinator(proc (): Explorer[Ret] =
+    iterator (p: Parser): ParseResult[Ret] {.closure.} =
+      for field, comb in options.fieldPairs:
+        block:
+          for path in comb.results(p):
+            var ret = result.T(name: makeIdent(field))
+            {.cast(uncheckedAssign).}:
+              access(ret, field) = path.value
+            yield (path.parser, ret)
   )
 
 proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
@@ -259,9 +279,10 @@ proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
 
   # Just implemented as the union of all possible values
   let opts = @options
-  return initCombinator(iterator (p: Parser): ParseResult[T] {.closure.} =
-    for combinator in opts:
-      yieldfrom combinator.results(p)
+  return initCombinator(proc (): Explorer[T] =
+    iterator (p: Parser): ParseResult[T] {.closure.} =
+      for combinator in opts:
+        yieldfrom combinator.results(p)
   )
 
 proc `|`*[T](left, right: Combinator[T]): Combinator[T] =
@@ -316,10 +337,11 @@ proc `not`*(comb: Combinator): Combinator[Void] =
     assert not g.test("hello")
     assert g.test("goodbye")
 
-  return initCombinator(iterator (p: Parser): ParseResult[Void] {.closure.} =
-    for item in comb(p):
-      return # Something was found, means we don't match
-    yield (p, Void())
+  return initCombinator(proc (): Explorer[Void] =
+    iterator (p: Parser): ParseResult[Void] {.closure.} =
+      for item in comb.results(p):
+        return # Something was found, means we don't match
+      yield (p, Void())
   )
 
 proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =

@@ -22,7 +22,7 @@ type
     ## Parser that optionally returns data.
     ## This returns all possible matches of running the parser in a lazy manner
     iter: proc(): Explorer[T]
-      ## Internal interator that yields matches
+      ## Factory that produces an iterator with all the paths
   Chain*[T] = (when T is char: string elif T is Void: Void else: seq[T])
     ## Represents how types get chained together when using repition like `+` and `*`
     ## - `char` becomes a `string`
@@ -31,13 +31,12 @@ type
 
 iterator results*[T](comb: Combinator[T], parser: Parser): ParseResult[T] =
   ## Yields all the iteration results of a combinator
-  echo comb.iter().finished
   for item in comb.iter()(parser):
     yield item
 
-template initCombinator*[T](explorer: Explorer[T]): Combinator[T] =
+proc initCombinator*[T](factory: proc (): Explorer[T]): Combinator[T] =
   ## Builds a combinator from an iterator
-  Combinator[T](iter: () => explorer)
+  Combinator[T](iter: factory)
 
 proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
   return proc (p: Parser): ParseTree[(T,)] =
@@ -51,16 +50,18 @@ template `$`*[T](comb: Combinator[T], name: untyped): untyped =
 
 proc trace*[T](comb: Combinator[T]): Combinator[T] =
   ## Utility function that echos the result of a combinator
-  return iterator (p: Parser): ParseResult[T] {.closure.} =
-    var foundSomething = false
-    for path in comb.results(p):
-      foundSomething = true
-      echo fmt"Parsed: '{p.data[p.pos ..< path.parser.pos]}'"
-      when T isnot Void:
-          echo fmt"Got: '{path.value}'"
-      yield path
-    if not foundSomething:
-      echo "Failed to parse"
+  return initCombinator(proc (): Explorer[T] =
+    iterator (p: Parser): ParseResult[T] {.closure.} =
+      var foundSomething = false
+      for path in comb.results(p):
+        foundSomething = true
+        echo fmt"Parsed: '{p.data[p.pos ..< path.parser.pos]}'"
+        when T isnot Void:
+            echo fmt"Got: '{path.value}'"
+        yield path
+      if not foundSomething:
+        echo "Failed to parse"
+  )
 
 # Functions to make Void compose with Chain
 proc add*(coll: var Chain[Void], val: Void) = discard
@@ -99,7 +100,7 @@ proc lazy*[T](comb: proc (): Combinator[T]): Combinator[T] =
     assert g.match("(())").get() == 2
     assert g.match("").get() == 0
 
-  return initCombinator(
+  return initCombinator(proc (): Explorer[T] =
     iterator (p: Parser): ParseResult[T] {.closure.} =
       yieldfrom comb().results(p)
   )

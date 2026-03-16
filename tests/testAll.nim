@@ -119,6 +119,11 @@ test "Negation matches":
     "hello": false
   }
 
+test "ReDoS":
+  # If we didn't have lazy evaluation, this would fail to parse
+  let redos = +(+(e'a'))
+  echo redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
 test "Can join unrelated types":
   let g = e('(') * digit()
   g.check {
