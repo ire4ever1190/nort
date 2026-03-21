@@ -3,6 +3,9 @@ import std/[options, sugar, parseutils, macros, sequtils, enumutils, strutils, s
 export options
 
 import ./[base, parser, utils, union]
+
+import pkg/casserole
+
 export union, base, sets, options
 
 #
@@ -69,9 +72,8 @@ proc dot*(): Combinator[char] =
 
   return initCombinator(proc (): Explorer[char] =
     iterator (p: Parser): ParseResult[char] {.closure.} =
-      let res = p.eat()
-      if res.isSome:
-        yield res.get()
+      if Some(res) ?== p.eat():
+        yield res
   )
 
 proc succeed*[T](value: T): Combinator[T] =
@@ -118,9 +120,8 @@ proc expect*(expect: string): Combinator[string] =
 
   return initCombinator(proc (): Explorer[string] =
     iterator (p: Parser): ParseResult[string] {.closure.} =
-      let res = p.continuesWith(expect)
-      if res.isSome():
-        yield res.get()
+      if Some(res) ?== p.continuesWith(expect):
+        yield res
   )
 
 proc expect*[T](values: HashSet[T]): Combinator[T] =
