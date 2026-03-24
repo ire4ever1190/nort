@@ -50,7 +50,7 @@ proc join[R](a: tuple, b: tuple, ret: typedesc[R]): R =
 # Combinators
 #
 
-proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] =
+proc filter*[P, T](comb: BaseCombinator[P, T], check: proc (val: T): bool): BaseCombinator[P, T] =
   ## Filter what values are allowed to consider that the filter has passed
   runnableExamples:
     import std/[strutils, sugar]
@@ -58,8 +58,8 @@ proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] 
     assert g.test("hello world")
     assert not g.test("world")
 
-  return initCombinator(proc (): Explorer[T] =
-    iterator (p: Parser): ParseResult[T] {.closure.} =
+  return initCombinator(proc (): Explorer[P, T] =
+    iterator (p: P): ParseResult[P, T] {.closure.} =
       for res in comb.results(p):
         if check(res.value):
           yield res
@@ -70,23 +70,23 @@ proc dot*(): Combinator[char] =
   runnableExamples:
     assert dot().match("abc") == some('a')
 
-  return initCombinator(proc (): Explorer[char] =
-    iterator (p: Parser): ParseResult[char] {.closure.} =
+  return initCombinator(proc (): Explorer[Parser, char] =
+    iterator (p: Parser): ParseResult[Parser, char] {.closure.} =
       if Some(res) ?== p.eat():
         yield res
   )
 
 proc succeed*[T](value: T): Combinator[T] =
   ## Combinator that always successeds and never comsumes input
-  return initCombinator(proc (): Explorer[T] =
-    iterator (p: Parser): ParseResult[T] {.closure.} =
+  return initCombinator(proc (): Explorer[Parser, T] =
+    iterator (p: Parser): ParseResult[Parser, T] {.closure.} =
       yield (p, value)
   )
 
 proc failure*(): Combinator[Void] =
   ## Combinator that matches nothing
-  return initCombinator(proc (): Explorer[Void] =
-    iterator (p: Parser): ParseResult[Void] {.closure.} =
+  return initCombinator(proc (): Explorer[Parser, Void] =
+    iterator (p: Parser): ParseResult[Parser, Void] {.closure.} =
       discard
   )
 
@@ -118,8 +118,8 @@ proc expect*(expect: string): Combinator[string] =
     assert g.match("foo") == some("foo")
     assert g.match("bar").isNone()
 
-  return initCombinator(proc (): Explorer[string] =
-    iterator (p: Parser): ParseResult[string] {.closure.} =
+  return initCombinator(proc (): Explorer[Parser, string] =
+    iterator (p: Parser): ParseResult[Parser, string] {.closure.} =
       if Some(res) ?== p.continuesWith(expect):
         yield res
   )
@@ -140,8 +140,8 @@ proc just*[T](comb: Combinator[T]): Combinator[T] =
     assert g.test("hello")
     assert not g.test("hello world")
 
-  return initCombinator(proc (): Explorer[T] =
-    iterator (p: Parser): ParseResult[T] {.closure.} =
+  return initCombinator(proc (): Explorer[Parser, T] =
+    iterator (p: Parser): ParseResult[Parser, T] {.closure.} =
       for res in comb.results(p):
         if res.parser.len == 0: # No input left
           yield res
@@ -157,8 +157,8 @@ proc fin*(): Combinator[Void] {.inline.} =
     assert g.test("hello")
     assert not g.test("hello world")
 
-  return initCombinator(proc (): Explorer[Void] =
-    iterator (p: Parser): ParseResult[Void] {.closure.}=
+  return initCombinator(proc (): Explorer[Parser, Void] =
+    iterator (p: Parser): ParseResult[Parser, Void] {.closure.}=
       if p.len == 0:
         yield (p, Void())
   )
@@ -181,26 +181,26 @@ proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
   return comb.map(it => Void())
 
-proc `<*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[tuple[left: L, right: R]] =
+proc `<*>`*[P, L, R](left: BaseCombinator[P, L], right: BaseCombinator[P, R]): BaseCombinator[P, tuple[left: L, right: R]] =
   ## Joins two combinators and returns a tuple of both parsed values.
   ## The [*] series of operators are more user friendly by flattening the returned values
-  return initCombinator(proc (): Explorer[tuple[left: L, right: R]] =
-    iterator (parser: Parser): ParseResult[tuple[left: L, right: R]] {.closure.} =
+  return initCombinator(proc (): Explorer[P, tuple[left: L, right: R]] =
+    iterator (parser: P): ParseResult[P, tuple[left: L, right: R]] {.closure.} =
       for (newParser, leftValue) in left.results(parser):
         for (finalParser, rightValue) in right.results(newParser):
           yield (finalParser, (leftValue, rightValue))
   )
 
-proc `<*`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[L] =
+proc `<*`*[P, L, R](left: BaseCombinator[P, L], right: BaseCombinator[P, R]): BaseCombinator[P, L] =
   ## Joins two combinators but only retains the left value
   (left <*> right).map(it => it.left)
 
 
-proc `*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[R] =
+proc `*>`*[P, L, R](left: BaseCombinator[P, L], right: BaseCombinator[P, R]): BaseCombinator[P, R] =
   ## Joins two combinators but only retains the right value
   (left <*> right).map(it => it.right)
 
-proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
+proc `*`*[P; A: tuple, B: tuple](left: BaseCombinator[P, A], right: BaseCombinator[P, B]): BaseCombinator[P, merge(A, B)] =
   ## Joins two combinators and merges the tuples together
   runnableExamples:
     let g = any(e"won", e"lost")$outcome * e" " * digit()$score
@@ -212,20 +212,20 @@ proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combin
 
   (left <*> right).map(values => join(values.left, values.right, type(merge(A, B))))
 
-proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[A] =
+proc `*`*[P; A: tuple, B: not tuple](left: BaseCombinator[P, A], right: BaseCombinator[P, B]): BaseCombinator[P, A] =
   ## Joins two combinators. Only returns the left combinator so named values are carried through
   left <* right
 
-proc `*`*[A: not tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[B] =
+proc `*`*[P; A: not tuple, B: tuple](left: BaseCombinator[P, A], right: BaseCombinator[P, B]): BaseCombinator[P, B] =
   ## Joins two combinators.  Only returns the right combinator so named values are carried through
   left *> right
 
-template `*`*[A, B](left: Combinator[A], right: Combinator[B]): Combinator[Void] =
+template `*`*[P, A, B](left: BaseCombinator[P, A], right: BaseCombinator[P, B]): BaseCombinator[P, Void] =
   ## Joins two combinators. Types are erased since we don't know what to do
   ## with them
   -(left <*> right)
 
-proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
+proc `*`*[P](left: BaseCombinator[P, Void], right: BaseCombinator[P, Void]): BaseCombinator[P, Void] =
   ## Joins two combinators
   runnableExamples:
     let g = e"hello" * e" " * e"world"

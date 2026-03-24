@@ -8,40 +8,41 @@ type
   Void* = object
     ## Internal type for representing a parser that returns nothing
 
-  ParseResult*[T] = tuple[parser: Parser, value: T]
-    ## Single parse result. This should return the remaining data to parse along with
-    ## the value that was returned
+  ParseResult*[P, T] = tuple[parser: P, value: T]
+    ## Single parse result.
+    ## This should return a parser with the new state along with the value that was parsed
 
-  ParseTree*[T] = seq[ParseResult[T]]
-    ## Tree of parsed result values
-
-  Explorer*[T] = iterator (p: Parser): ParseResult[T] {.closure.}
+  Explorer*[P, T] = iterator (p: P): ParseResult[P, T] {.closure.}
     ## Iterator that returns all the paths a parser can take
 
-  Combinator*[T] = object
+  BaseCombinator*[P, T] = object
     ## Parser that optionally returns data.
     ## This returns all possible matches of running the parser in a lazy manner
-    iter: proc(): Explorer[T]
+    iter: proc(): Explorer[P, T]
       ## Factory that produces an iterator with all the paths
+
+  Combinator*[T] = BaseCombinator[Parser, T]
+    ## Combinator that operates on strings
+    ##
   Chain*[T] = (when T is char: string elif T is Void: Void else: seq[T])
     ## Represents how types get chained together when using repition like `+` and `*`
     ## - `char` becomes a `string`
     ## - `Void` stays `Void`, it doesn't make sense to join these
     ## - everything else gets joined in a sequence
 
-iterator results*[T](comb: Combinator[T], parser: Parser): ParseResult[T] =
+iterator results*[P, T](comb: BaseCombinator[P, T], parser: P): ParseResult[P, T] =
   ## Yields all the iteration results of a combinator
   let iter = comb.iter()
   for item in iter(parser):
     yield item
 
-proc initCombinator*[T](factory: proc (): Explorer[T]): Combinator[T] =
+proc initCombinator*[P, T](factory: proc (): Explorer[P, T]): BaseCombinator[P, T] =
   ## Builds a combinator from an iterator
-  Combinator[T](iter: factory)
+  BaseCombinator[P, T](iter: factory)
 
-proc bindTo*[T; R: tuple](comb: Combinator[T]): Combinator[R] =
-  return initCombinator(proc (): Explorer[R] =
-    iterator (p: Parser): ParseResult[(T,)] {.closure.} =
+proc bindTo*[T, P; R: tuple](comb: BaseCombinator[P, T]): BaseCombinator[P, R] =
+  return initCombinator(proc (): Explorer[P, R] =
+    iterator (p: P): ParseResult[P, (T,)] {.closure.} =
       for val in comb.results(p):
         yield (val.parser, (val.value,))
   )
