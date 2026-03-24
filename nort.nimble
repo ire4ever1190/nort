@@ -10,4 +10,4 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.2.4"
-requires "gh:ire4ever1190/casserole >= 0.2.0"
+requires "gh:ire4ever1190/libdump >= 0.4.5"

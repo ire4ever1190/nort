@@ -1,4 +1,4 @@
-import std/macros
+import std/[macros, options]
 
 ## Internal utilities, you shouldn't need these
 
@@ -39,6 +39,11 @@ macro merge*(a: typedesc[tuple], b: typedesc[not tuple]): typedesc =
   ## Just returns `a` since we don't merge tuples with single types
   return a
 
+template safeGet*[T](inp: Option[T], name: untyped): bool =
+  ## Meant to be used in a template.
+  ## Unpacks an option and puts it into scope
+  let untyped {.inject.} = if inp.isSome(): inp.unsafeGet() else: default(T)
+  inp.isSome()
 
 template yieldfrom*[T](iter: iterable[T]) =
   ## Yields every remaining item in `iter`

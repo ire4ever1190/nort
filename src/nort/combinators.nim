@@ -4,8 +4,6 @@ export options
 
 import ./[base, parser, utils, union]
 
-import pkg/casserole
-
 export union, base, sets, options
 
 #
@@ -72,7 +70,7 @@ proc dot*(): Combinator[char] =
 
   return initCombinator(proc (): Explorer[Parser, char] =
     iterator (p: Parser): ParseResult[Parser, char] {.closure.} =
-      if Some(res) ?== p.eat():
+      if p.eat().safeGet(res):
         yield res
   )
 
@@ -120,7 +118,7 @@ proc expect*(expect: string): Combinator[string] =
 
   return initCombinator(proc (): Explorer[Parser, string] =
     iterator (p: Parser): ParseResult[Parser, string] {.closure.} =
-      if Some(res) ?== p.continuesWith(expect):
+      if p.continuesWith(expect).safeGet(res):
         yield res
   )
 
@@ -132,7 +130,7 @@ proc expect*[T](values: HashSet[T]): Combinator[T] =
       expect(value)
   return any(possible)
 
-proc just*[T](comb: Combinator[T]): Combinator[T] =
+proc just*[P, T](comb: BaseCombinator[P, T]): BaseCombinator[P, T] =
   ## Expects the combinator to fully match the input.
   runnableExamples:
     let g = just(e"hello")
@@ -140,10 +138,13 @@ proc just*[T](comb: Combinator[T]): Combinator[T] =
     assert g.test("hello")
     assert not g.test("hello world")
 
-  return initCombinator(proc (): Explorer[Parser, T] =
-    iterator (p: Parser): ParseResult[Parser, T] {.closure.} =
+  return initCombinator(proc (): Explorer[P, T] =
+    iterator (p: P): ParseResult[P, T] {.closure.} =
       for res in comb.results(p):
-        if res.parser.len == 0: # No input left
+        when P is Parser:
+          if res.parser.len == 0: # No input left
+            yield res
+        else:
           yield res
   )
 
@@ -163,7 +164,7 @@ proc fin*(): Combinator[Void] {.inline.} =
         yield (p, Void())
   )
 
-proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
+proc map*[P, T, R](comb: BaseCombinator[P, T], op: proc (inp: T): R): BaseCombinator[P, R] =
   ## Allows you to perform an operator on a combinators output if it passes
   runnableExamples:
     import std/[sugar, strutils]
@@ -171,13 +172,13 @@ proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
     let g = "hello".expect.map(toUpperAscii)
     assert g.match("hello").get() == "HELLO"
 
-  return initCombinator(proc (): Explorer[R] =
-    iterator (p: Parser): ParseResult[R] {.closure.} =
+  return initCombinator(proc (): Explorer[P, R] =
+    iterator (p: P): ParseResult[P, R] {.closure.} =
       for res in comb.results(p):
         yield (res.parser, op(res.value))
-    )
+  )
 
-proc `-`*(comb: Combinator): Combinator[Void] =
+proc `-`*[P](comb: BaseCombinator[P, auto]): BaseCombinator[P, Void] =
   ## Erases the type from a combinator
   return comb.map(it => Void())
 
@@ -233,7 +234,7 @@ proc `*`*[P](left: BaseCombinator[P, Void], right: BaseCombinator[P, Void]): Bas
 
   return -(left <*> right)
 
-proc `*`*[T: not tuple](left: Combinator[T], right: Combinator[Void]): Combinator[T] =
+proc `*`*[P, T: not tuple](left: BaseCombinator[P, T], right: BaseCombinator[P, Void]): BaseCombinator[P, T] =
   ## Carries a type through if the right side doesn't have one
   runnableExamples:
     let g = e"hello" * e" " * e"world"
@@ -241,7 +242,7 @@ proc `*`*[T: not tuple](left: Combinator[T], right: Combinator[Void]): Combinato
 
   left <* right
 
-proc `*`*[T](left: Combinator[Void], right: Combinator[T]): Combinator[T] =
+proc `*`*[P, T](left: BaseCombinator[P, Void], right: BaseCombinator[P, T]): BaseCombinator[P, T] =
   ## Carries a type through if the right side doesn't have one
   runnableExamples:
     let g = e"hello" * e" " * e"world"
@@ -249,19 +250,19 @@ proc `*`*[T](left: Combinator[Void], right: Combinator[T]): Combinator[T] =
 
   left *> right
 
-proc `*`*[T](left: Combinator[T], right: Combinator[Chain[T]]): Combinator[Chain[T]] =
+proc `*`*[P, T](left: BaseCombinator[P, T], right: BaseCombinator[P, Chain[T]]): BaseCombinator[P, Chain[T]] =
   ## Joins two combinators, merging the results of both
   (left <*> right).map(values => values.left & values.right)
 
-proc `*`*[T](left: Combinator[Chain[T]], right: Combinator[T]): Combinator[Chain[T]] =
+proc `*`*[P, T](left: BaseCombinator[P, Chain[T]], right: BaseCombinator[P, T]): BaseCombinator[P, Chain[T]] =
   ## Joins two combinators, merging the results of both
   (left <*> right).map(values => values.left & values.right)
 
 proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
   ## Named branch of what to expect
   type Ret = result.T
-  return initCombinator(proc (): Explorer[Ret] =
-    iterator (p: Parser): ParseResult[Ret] {.closure.} =
+  return initCombinator(proc (): Explorer[Parser, Ret] =
+    iterator (p: Parser): ParseResult[Parser, Ret] {.closure.} =
       for field, comb in options.fieldPairs:
         block:
           for path in comb.results(p):
@@ -271,7 +272,7 @@ proc any*[T: tuple](options: T): Combinator[mapAny(T)] =
             yield (path.parser, ret)
   )
 
-proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
+proc any*[P, T](options: varargs[BaseCombinator[P, T]]): BaseCombinator[P, T] =
   ## Passes if any of the combinators pass, this returns the value that passed
   runnableExamples:
     let g = any(e"yes", e"no")
@@ -280,13 +281,13 @@ proc any*[T](options: varargs[Combinator[T]]): Combinator[T] =
 
   # Just implemented as the union of all possible values
   let opts = @options
-  return initCombinator(proc (): Explorer[T] =
-    iterator (p: Parser): ParseResult[T] {.closure.} =
+  return initCombinator(proc (): Explorer[P, T] =
+    iterator (p: P): ParseResult[P, T] {.closure.} =
       for combinator in opts:
         yieldfrom combinator.results(p)
   )
 
-proc `|`*[T](left, right: Combinator[T]): Combinator[T] =
+proc `|`*[P, T](left, right: BaseCombinator[P, T]): BaseCombinator[P, T] =
   ## This picks either left or right, returning the value that matches
   runnableExamples:
     let g = e"yes" | e"no"
@@ -295,7 +296,7 @@ proc `|`*[T](left, right: Combinator[T]): Combinator[T] =
 
   any(left, right)
 
-proc `|`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[Void] =
+proc `|`*[P, L, R](left: BaseCombinator[P, L], right: BaseCombinator[P, R]): BaseCombinator[P, Void] =
   ## This picks either left or right. Since they are different types, it erases the type
   runnableExamples:
     let g = digit() | e"hello" | e'L'
@@ -330,7 +331,7 @@ proc expect*[T: enum](e: typedesc[T]): Combinator[T] =
       $val
   expect(possible).map(parseEnum[T])
 
-proc `not`*(comb: Combinator): Combinator[Void] =
+proc `not`*[P](comb: BaseCombinator[P, auto]): BaseCombinator[P, Void] =
   ## Expects a combinator to not match. This is a negative lookahead that doesn't consume
   ## any input
   runnableExamples:
@@ -338,14 +339,14 @@ proc `not`*(comb: Combinator): Combinator[Void] =
     assert not g.test("hello")
     assert g.test("goodbye")
 
-  return initCombinator(proc (): Explorer[Void] =
-    iterator (p: Parser): ParseResult[Void] {.closure.} =
+  return initCombinator(proc (): Explorer[P, Void] =
+    iterator (p: P): ParseResult[P, Void] {.closure.} =
       for item in comb.results(p):
         return # Something was found, means we don't match
       yield (p, Void())
   )
 
-proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
+proc `*`*[P, T](comb: BaseCombinator[P, T]): BaseCombinator[P, Chain[T]] =
   ## Expects a combinator to match zero or more times. Returns all matches
   ## This is greedy and tries to match the most
   runnableExamples:
@@ -356,7 +357,7 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   # The right recursion will make this find the longest match first
   (comb <*> lazy(() => *comb)).map(values => values.left & values.right) | succeed(default(Chain[T]))
 
-proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
+proc `+`*[P, T](comb: BaseCombinator[P, T]): BaseCombinator[P, Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
   runnableExamples:
     let g = +e"hey"
@@ -365,7 +366,7 @@ proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
 
   comb * *comb
 
-proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
+proc `?`*[P, T](comb: BaseCombinator[P, T]): BaseCombinator[P, Option[T]] =
   ## Optionally matches a combinator. Attempts to parse it first, but will continue without using input if fails
   runnableExamples:
     let g = ?e"hello"
@@ -375,7 +376,7 @@ proc `?`*[T](comb: Combinator[T]): Combinator[Option[T]] =
   let wrapped = comb.map() do (inp: T) -> Option[T]: some(inp)
   any(wrapped, epsilon().map(it => none(T)))
 
-proc sep*[T](comb: Combinator[T], sep: Combinator): Combinator[seq[T]] =
+proc sep*[P, T](comb: BaseCombinator[P, T], sep: BaseCombinator[P, auto]): BaseCombinator[P, seq[T]] =
   ## Matches a zero or more of `comb` that is separate by `sep`
   runnableExamples:
     let g = digit().sep(e", ")
@@ -384,14 +385,14 @@ proc sep*[T](comb: Combinator[T], sep: Combinator): Combinator[seq[T]] =
   # We need to convert it to a tuple and then unwrap it or else we lose the types
   *(comb <* ?sep)
 
-proc listOf*[T](comb: Combinator[T], sep: Combinator): Combinator[T] =
+proc listOf*[P, T](comb: BaseCombinator[P, T], sep: BaseCombinator[P, auto]): BaseCombinator[P, T] =
   ## Matches one or more of `comb` that is separate by `sep`
   return comb * comb.sep(sep)
 
 type Reducer*[T, S] = proc (left: T, middle: S, right: T): T
   ## Operation that reduces left and right depending on the middle value
 
-proc chainl*[T, S](comb: Combinator[T], sep: Combinator[S], combine: Reducer[T, S]): Combinator[T] =
+proc chainl*[P, T, S](comb: BaseCombinator[P, T], sep: BaseCombinator[P, S], combine: Reducer[T, S]): BaseCombinator[P, T] =
   ## Like [sep] or [listOf] except performs operations on the separaters. Use this when the separaters have
   ## some special meaning
   runnableExamples:
@@ -414,7 +415,7 @@ proc chainl*[T, S](comb: Combinator[T], sep: Combinator[S], combine: Reducer[T, 
     for (sep, item) in seps:
       result = combine(result, sep, item)
 
-proc chainr*[T, S](comb: Combinator[T], sep: Combinator[S], combine: Reducer[T, S]): Combinator[T] =
+proc chainr*[P, T, S](comb: BaseCombinator[P, T], sep: BaseCombinator[P, S], combine: Reducer[T, S]): BaseCombinator[P, T] =
   ## Like [chainl] but applies operations from right to left
   runnableExamples:
     let
@@ -437,7 +438,7 @@ proc chainr*[T, S](comb: Combinator[T], sep: Combinator[S], combine: Reducer[T, 
       let (sep, item) = recurse.get()
       result = combine(result, sep, item)
 
-proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
+proc until*[P, T](comb: BaseCombinator[P, T], target: BaseCombinator[P, auto]): BaseCombinator[P, Chain[T]] =
   ## Parses `comb` until it encounters `target` (without consuming target)
   runnableExamples:
     let g = dot().until(e"world")
@@ -447,7 +448,7 @@ proc until*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
 
   *(not target * comb)
 
-proc untilIncl*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]] =
+proc untilIncl*[P, T](comb: BaseCombinator[P, T], target: BaseCombinator[P, auto]): BaseCombinator[P, Chain[T]] =
   ## Parses `comb` until it encounters `target` (consumes target)
   runnableExamples:
     let g = dot().untilIncl(e"world")
@@ -458,7 +459,7 @@ proc untilIncl*[T](comb: Combinator[T], target: Combinator): Combinator[Chain[T]
 
   comb.until(target) * -target
 
-proc between*[T, L, R](comb: Combinator[T], left: Combinator[L], right: Combinator[R]): Combinator[T] =
+proc between*[P, T, L, R](comb: BaseCombinator[P, T], left: BaseCombinator[P, L], right: BaseCombinator[P, R]): BaseCombinator[P, T] =
   ## Checks that `comb` appears after `left` and before `right`
   runnableExamples:
     let g = digit().between(e'[', e']')
@@ -466,7 +467,7 @@ proc between*[T, L, R](comb: Combinator[T], left: Combinator[L], right: Combinat
 
   -left * comb * -right
 
-proc occurs*[T](comb: Combinator[T]): Combinator[bool] =
+proc occurs*[P, T](comb: BaseCombinator[P, T]): BaseCombinator[P, bool] =
   ## Returns true if `comb` occurs, false otherwise
   runnableExamples:
     let g = digit() * occurs(e';')$semicolon
@@ -487,7 +488,7 @@ proc digit*(): Combinator[int] =
     if values[0]:
       result *= -1
 
-proc map*[R](mapping: openArray[(Combinator[Void], R)]): Combinator[R] =
+proc map*[P, R](mapping: openArray[(BaseCombinator[P, Void], R)]): BaseCombinator[P, R] =
   ## Maps matching input values to output values
   runnableExamples:
     type
