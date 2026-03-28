@@ -201,6 +201,7 @@ proc `*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[R] =
   (left <*> right).map(it => it.right)
 
 
+# auto is used because `Combinator[merge(A, B)]` was giving a symbol injection warning
 proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): auto =
   ## Joins two combinators and merges the tuples together so that the return value
   ## is a tuple with the fields of `A` merged with `B` into a single tuple
