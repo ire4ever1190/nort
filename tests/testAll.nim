@@ -127,6 +127,19 @@ suite "ReDoS":
     let redos = +(+(e'a'))
     assert redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
 
+suite "Tuple type carrying":
+  test "Two tuples copy fields":
+    let g = e"hello"$left * e"world"$right
+    assert g.T is tuple[left: string, right: string]
+
+  test "Right tuple is carried over type":
+    let g = e"hello" * e"world"$right
+    assert g.T is tuple[right: string]
+
+  test "Left tuple is carried over type":
+    let g = e"hello"$left * e"world"
+    assert g.T is tuple[left: string]
+
 test "Can join unrelated types":
   let g = e('(') * digit()
   g.check {

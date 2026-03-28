@@ -200,8 +200,11 @@ proc `*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[R] =
   ## Joins two combinators but only retains the right value
   (left <*> right).map(it => it.right)
 
-proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combinator[merge(A, B)] =
-  ## Joins two combinators and merges the tuples together
+
+# auto is used because `Combinator[merge(A, B)]` was giving a symbol injection warning
+proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): auto =
+  ## Joins two combinators and merges the tuples together so that the return value
+  ## is a tuple with the fields of `A` merged with `B` into a single tuple
   runnableExamples:
     let g = any(e"won", e"lost")$outcome * e" " * digit()$score
 
@@ -209,8 +212,7 @@ proc `*`*[A: tuple, B: tuple](left: Combinator[A], right: Combinator[B]): Combin
     # The names were merged into a single tuple
     assert res.outcome == "won"
     assert res.score == 9
-
-  (left <*> right).map(values => join(values.left, values.right, type(merge(A, B))))
+  (left <*> right).map(values => join(values.left, values.right, merge(A, B)))
 
 proc `*`*[A: tuple, B: not tuple](left: Combinator[A], right: Combinator[B]): Combinator[A] =
   ## Joins two combinators. Only returns the left combinator so named values are carried through
