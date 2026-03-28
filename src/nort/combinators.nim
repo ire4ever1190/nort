@@ -1,4 +1,4 @@
-import std/[options, sugar, parseutils, macros, sequtils, enumutils, strutils, setutils, sets, sequtils]
+import std/[options, sugar, macros, sequtils, strutils, setutils, sets]
 
 export options
 
