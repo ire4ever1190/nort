@@ -4,6 +4,12 @@ export options
 
 import ./[parser, utils]
 
+
+template performChain(typ: typedesc): typedesc =
+  ## Performs the transformation form a type into chained version.
+  ## This is a separate template to get around `IgnoredSymbolInjection` warnings
+  when T is char: string elif T is Void: Void else: seq[T]
+
 type
   Void* = object
     ## Internal type for representing a parser that returns nothing
@@ -21,9 +27,9 @@ type
   Combinator*[T] = object
     ## Parser that optionally returns data.
     ## This returns all possible matches of running the parser in a lazy manner
-    iter: proc(): Explorer[T]
+    iter: () -> Explorer[T]
       ## Factory that produces an iterator with all the paths
-  Chain*[T] = (when T is char: string elif T is Void: Void else: seq[T])
+  Chain*[T] = performChain(T)
     ## Represents how types get chained together when using repition like `+` and `*`
     ## - `char` becomes a `string`
     ## - `Void` stays `Void`, it doesn't make sense to join these
