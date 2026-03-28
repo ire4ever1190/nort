@@ -31,13 +31,13 @@ macro merge*(a: typedesc[tuple], b: typedesc[tuple]): typedesc =
   for child in b:
     result.add(nnkIdentDefs.newTree(ident child[0].strVal, child[1], newEmptyNode()))
 
-macro merge*(a: typedesc[not tuple], b: typedesc[tuple]): typedesc =
+template merge*(a: typedesc[not tuple], b: typedesc[tuple]): typedesc =
   ## Just returns `b` since we don't merge tuples with single types
-  return b
+  b
 
-macro merge*(a: typedesc[tuple], b: typedesc[not tuple]): typedesc =
+template merge*(a: typedesc[tuple], b: typedesc[not tuple]): typedesc =
   ## Just returns `a` since we don't merge tuples with single types
-  return a
+  a
 
 
 template yieldfrom*[T](iter: iterable[T]) =
