@@ -30,6 +30,7 @@ macro merge*(a: typedesc[tuple], b: typedesc[tuple]): typedesc =
 
   for child in b:
     result.add(nnkIdentDefs.newTree(ident child[0].strVal, child[1], newEmptyNode()))
+  echo result.treeREpr
 
 template merge*(a: typedesc[not tuple], b: typedesc[tuple]): typedesc =
   ## Just returns `b` since we don't merge tuples with single types

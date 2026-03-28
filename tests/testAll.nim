@@ -130,15 +130,15 @@ suite "ReDoS":
 suite "Tuple type carrying":
   test "Two tuples copy fields":
     let g = e"hello"$left * e"world"$right
-    assert g is tuple[left: string, right: string]
+    assert g.T is tuple[left: string, right: string]
 
   test "Right tuple is carried over type":
     let g = e"hello" * e"world"$right
-    assert g is tuple[right: string]
+    assert g.T is tuple[right: string]
 
   test "Left tuple is carried over type":
     let g = e"hello"$left * e"world"
-    assert g is tuple[right: string]
+    assert g.T is tuple[left: string]
 
 test "Can join unrelated types":
   let g = e('(') * digit()
