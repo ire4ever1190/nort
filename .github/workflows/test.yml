@@ -21,9 +21,10 @@ jobs:
       - name: Setup Nim Enviroment
         uses: actions/checkout@master
 
-      - uses: iffy/install-nim@v5
+      - uses: jiro4989/setup-nim-action@v2
         with:
-          version: ${{ matrix.nim }}
+          nim-version: ${{ matrix.nim }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update nimble
         run: nimble update
