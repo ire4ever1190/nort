@@ -186,9 +186,9 @@ proc `<*>`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[tuple[l
   ## The [*] series of operators are more user friendly by flattening the returned values
   return initCombinator(proc (): Explorer[tuple[left: L, right: R]] =
     iterator (parser: Parser): ParseResult[tuple[left: L, right: R]] {.closure.} =
-      for (newParser, leftValue) in left.results(parser):
-        for (finalParser, rightValue) in right.results(newParser):
-          yield (finalParser, (leftValue, rightValue))
+      for res in left.results(parser):
+        for (finalParser, rightValue) in right.results(res.parser):
+          yield (finalParser, (res.value, rightValue))
   )
 
 proc `<*`*[L, R](left: Combinator[L], right: Combinator[R]): Combinator[L] =
