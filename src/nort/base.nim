@@ -18,9 +18,6 @@ type
     ## Single parse result. This should return the remaining data to parse along with
     ## the value that was returned
 
-  ParseTree*[T] = seq[ParseResult[T]]
-    ## Tree of parsed result values
-
   Explorer*[T] = iterator (p: Parser): ParseResult[T] {.closure.}
     ## Iterator that returns all the paths a parser can take
 

@@ -228,9 +228,9 @@ template `*`*[A, B](left: Combinator[A], right: Combinator[B]): Combinator[Void]
   -(left <*> right)
 
 proc `*`*(left: Combinator[Void], right: Combinator[Void]): Combinator[Void] =
-  ## Joins two combinators
+  ## Joins two combinators that have no types associated with them
   runnableExamples:
-    let g = e"hello" * e" " * e"world"
+    let g = -e"hello" * -e" " * -e"world"
     assert g.test("hello world")
 
   return -(left <*> right)
