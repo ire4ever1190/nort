@@ -374,8 +374,8 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
         if not found: break
 
       # Now work back, returning largest match and then slowing chopping off points
-      for parser in parsers:
-        yield (parser, items)
+      for i in countdown(parsers.len - 1, 0):
+        yield (parsers[i], items)
         when T isnot Void: # Void never grows
           if items.len > 0:
             items.setLen(items.len - 1)
