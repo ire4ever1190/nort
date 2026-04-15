@@ -127,7 +127,7 @@ suite "ReDoS":
     let redos = +(+(e'a'))
     assert redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
 
-  test "Repition doesn't recurse":
+  test "Can parse long strings":
     let g = *e('a')
     assert g.match("a".repeat(2000)).isSome()
 
