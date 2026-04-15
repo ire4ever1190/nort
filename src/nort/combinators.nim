@@ -355,8 +355,31 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
     assert g.test("")
     assert g.test("heyhey")
 
-  # The right recursion will make this find the longest match first
-  (comb <*> lazy(() => *comb)).map(values => values.left & values.right) | succeed(default(Chain[T]))
+  return initCombinator(proc (): Explorer[Chain[T]] =
+    iterator (p: Parser): ParseResult[Chain[T]] {.closure.} =
+      # We can't use recursion or that would blow the stack.
+      # We instead find the longest length and then work backwards
+      var
+        items: Chain[T]
+        parsers: seq[Parser] = @[p]
+        pos = p
+      # Find longest match, building up the value and checkpoints
+      while true:
+        var found = false
+        for (nextParser, value) in comb.results(pos):
+          pos = nextParser
+          items &= value
+          parsers &= pos
+          found = true
+        if not found: break
+
+      # Now work back, returning largest match and then slowing chopping off points
+      for parser in parsers:
+        yield (parser, items)
+        when T isnot Void: # Void never grows
+          if items.len > 0:
+            items.setLen(items.len - 1)
+  )
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
