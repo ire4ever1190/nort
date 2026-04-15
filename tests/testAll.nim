@@ -1,7 +1,7 @@
 import std/[unittest, strutils]
 
 import nort
-import nort/base
+import nort/[base, helpers]
 
 import ./utils
 
@@ -10,7 +10,6 @@ test "Can match a character":
   g.check {
     "a": 'a',
     "b": 'b',
-    "cd": 'c'
   }
 
 test "Can match digit":
@@ -25,14 +24,14 @@ test "Can match digit":
   }
 
 test "Can match string":
-  let g = e"hello"
+  let g = e"hello" * anyAll
   g.check {
     "hello": "hello",
     "helloworld": "hello"
   }
 
 test "Can parse until target":
-  let g = dot().until(e"hello")
+  let g = dot().until(e"hello") * -(?e"hello")
   g.check {
     "abcdhello": "abcd",
     "hello": "",
@@ -44,7 +43,10 @@ test "Can match * that are turned into strings":
   g.check {
     "": "",
     "ccc": "ccc",
-    "a": ""
+  }
+
+  g.check {
+    "b": false
   }
 
 test "* doesn't eat too much":
@@ -119,7 +121,7 @@ test "Can match union":
   discard val.get().bar
 
 test "Negation matches":
-  let g = not e"hello"
+  let g = (not e"hello") * anyAll
   g.check {
     "world": true,
     "hello": false

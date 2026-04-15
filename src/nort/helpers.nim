@@ -9,3 +9,6 @@ let
     ## Newline character. Is cross platform and handles both windows and linux line endings
 
   ws*: Combinator[Void] = -e(Whitespace)
+
+  anyAll*: Combinator[Void] = *(-dot())
+    ## Matches anything without returning any value. Use this to make your pattern a substring match

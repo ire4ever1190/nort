@@ -1,4 +1,4 @@
-import std/[options, sugar, macros, sequtils, strutils, setutils, sets]
+import std/[options, sugar, macros, sequtils, strutils, setutils, sets, deques]
 
 export options
 
@@ -145,22 +145,6 @@ proc just*[T](comb: Combinator[T]): Combinator[T] =
       for res in comb.results(p):
         if res.parser.len == 0: # No input left
           yield res
-  )
-
-# You'll see functions like this that don't need to be functions.
-# It helps with errors if the type system knows its a Combinator, compiler should inline it
-proc fin*(): Combinator[Void] {.inline.} =
-  ## Expects there to be no more data
-  runnableExamples:
-    let g = e"hello" * fin()
-
-    assert g.test("hello")
-    assert not g.test("hello world")
-
-  return initCombinator(proc (): Explorer[Void] =
-    iterator (p: Parser): ParseResult[Void] {.closure.}=
-      if p.len == 0:
-        yield (p, Void())
   )
 
 proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
@@ -348,8 +332,8 @@ proc `not`*(comb: Combinator): Combinator[Void] =
   )
 
 proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
-  ## Expects a combinator to match zero or more times. Returns all matches
-  ## This is greedy and tries to match the most
+  ## Expects a combinator to match zero or more times, returns all matches.
+  ## This is non-greedy
   runnableExamples:
     let g = *e"hey"
     assert g.test("")
@@ -357,28 +341,15 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
 
   return initCombinator(proc (): Explorer[Chain[T]] =
     iterator (p: Parser): ParseResult[Chain[T]] {.closure.} =
-      # We can't use recursion or that would blow the stack.
-      # We instead find the longest length and then work backwards
-      var
-        items: Chain[T]
-        parsers: seq[Parser] = @[p]
-        pos = p
+      # Start with the no match base case
+      var frontier: Deque[ParseResult[Chain[T]]] = [(p, default(Chain[T]))].toDeque()
       # Find longest match, building up the value and checkpoints
-      while true:
-        var found = false
-        for (nextParser, value) in comb.results(pos):
-          pos = nextParser
-          items &= value
-          parsers &= pos
-          found = true
-        if not found: break
-
-      # Now work back, returning largest match and then slowing chopping off points
-      for i in countdown(parsers.len - 1, 0):
-        yield (parsers[i], items)
-        when T isnot Void: # Void never grows
-          if items.len > 0:
-            items.setLen(items.len - 1)
+      while frontier.len > 0:
+        let (curr, value) = frontier.popFirst()
+        yield (curr, value)
+        for match in comb.results(curr):
+          let nextItem = (match.parser, value & match.value)
+          frontier.addLast(nextItem)
   )
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
