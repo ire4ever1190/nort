@@ -73,6 +73,12 @@ test "Can chain Void":
     "hello": true
   }
 
+test "* matches in right order":
+  let g = *dot() * e('d')
+  g.check {
+    "abcd": "abcd"
+  }
+
 test "Chain non strings":
   let g = +(digit() * -e',')
   g.check {
