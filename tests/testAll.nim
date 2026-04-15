@@ -127,6 +127,10 @@ suite "ReDoS":
     let redos = +(+(e'a'))
     assert redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
 
+  test "Repition doesn't recurse":
+    let g = *e('a')
+    assert g.match("a".repeat(2000)).isSome()
+
 suite "Tuple type carrying":
   test "Two tuples copy fields":
     let g = e"hello"$left * e"world"$right
