@@ -88,7 +88,7 @@ proc `&`*(a, b: Void): Void = a
 proc match*[T](comb: Combinator[T], data: string): Option[T] =
   ## Checks if a string matches a pattern. Returns the first match.
   let p = Parser(data: data)
-  for res in (comb).results(p):
+  for res in comb.results(p):
     return res.value.some()
 
 proc test*[T](comb: Combinator[T], data: sink string): bool =
