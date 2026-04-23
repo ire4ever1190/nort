@@ -348,10 +348,13 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
       # Do DFS to mimic the old recursive approach
       while frontier.len > 0:
         let (curr, value) = frontier.pop()
-        matches &= (curr, value)
         for match in comb.results(curr):
           let nextItem = (match.parser, value & match.value)
           frontier &= nextItem
+        # Everything matches itself.
+        # In the base case that nothing matches, it just means nothing else is added
+        # to the frontier so this is the last item
+        matches &= (curr, value)
 
       for i in countdown(matches.len - 1, 0):
         yield matches[i]
