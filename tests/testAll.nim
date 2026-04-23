@@ -1,7 +1,7 @@
 import std/[unittest, strutils]
 
 import nort
-import nort/base
+import nort/[base, helpers]
 
 import ./utils
 
@@ -73,6 +73,12 @@ test "Can chain Void":
     "hello": true
   }
 
+test "* matches in right order":
+  let g = *dot() * e('d')
+  g.check {
+    "abcd": "abcd"
+  }
+
 test "Chain non strings":
   let g = +(digit() * -e',')
   g.check {
@@ -126,6 +132,10 @@ suite "ReDoS":
     # If we didn't have lazy evaluation, this would fail to parse
     let redos = +(+(e'a'))
     assert redos.match("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").isSome()
+
+  test "Can parse long strings":
+    let g = *e('a')
+    assert g.match("a".repeat(2000)).isSome()
 
 suite "Tuple type carrying":
   test "Two tuples copy fields":

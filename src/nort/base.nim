@@ -1,4 +1,5 @@
 ## This is internal library code to set everything up
+## .. importdoc:: helpers.nim
 import std/[options, macros, strformat, sugar]
 export options
 
@@ -69,12 +70,23 @@ proc trace*[T](comb: Combinator[T]): Combinator[T] =
         echo "Failed to parse"
   )
 
+# You'll see functions like this that don't need to be functions.
+# It helps with errors if the type system knows its a Combinator, compiler should inline it
+proc fin*(): Combinator[Void] {.inline.} =
+  ## Expects there to be no more data
+
+  return initCombinator(proc (): Explorer[Void] =
+    iterator (p: Parser): ParseResult[Void] {.closure.} =
+      if p.len == 0:
+        yield (p, Void())
+  )
+
 # Functions to make Void compose with Chain
 proc add*(coll: var Chain[Void], val: Void) = discard
 proc `&`*(a, b: Void): Void = a
 
 proc match*[T](comb: Combinator[T], data: string): Option[T] =
-  ## Checks if a string matches a pattern. Returns the first match
+  ## Checks if a string matches a pattern. Returns the first match.
   let p = Parser(data: data)
   for res in comb.results(p):
     return res.value.some()

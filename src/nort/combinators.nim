@@ -1,4 +1,4 @@
-import std/[options, sugar, macros, sequtils, strutils, setutils, sets]
+import std/[options, sugar, macros, sequtils, strutils, setutils, sets, deques]
 
 export options
 
@@ -145,22 +145,6 @@ proc just*[T](comb: Combinator[T]): Combinator[T] =
       for res in comb.results(p):
         if res.parser.len == 0: # No input left
           yield res
-  )
-
-# You'll see functions like this that don't need to be functions.
-# It helps with errors if the type system knows its a Combinator, compiler should inline it
-proc fin*(): Combinator[Void] {.inline.} =
-  ## Expects there to be no more data
-  runnableExamples:
-    let g = e"hello" * fin()
-
-    assert g.test("hello")
-    assert not g.test("hello world")
-
-  return initCombinator(proc (): Explorer[Void] =
-    iterator (p: Parser): ParseResult[Void] {.closure.}=
-      if p.len == 0:
-        yield (p, Void())
   )
 
 proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
@@ -355,8 +339,29 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
     assert g.test("")
     assert g.test("heyhey")
 
-  # The right recursion will make this find the longest match first
-  (comb <*> lazy(() => *comb)).map(values => values.left & values.right) | succeed(default(Chain[T]))
+  return initCombinator(proc (): Explorer[Chain[T]] =
+    iterator (p: Parser): ParseResult[Chain[T]] {.closure.} =
+      # Start with the no match base case
+      var
+        frontier: seq[ParseResult[Chain[T]]] = @[(p, default(Chain[T]))]
+        matches: seq[ParseResult[Chain[T]]] = @[]
+      # Do DFS to mimic the old recursive approach
+      while frontier.len > 0:
+        let (curr, value) = frontier.pop()
+        for match in comb.results(curr):
+          let nextItem = (match.parser, value & match.value)
+          frontier &= nextItem
+        # Everything matches itself.
+        # In the base case that nothing matches, it just means nothing else is added
+        # to the frontier so this is the last item
+        matches &= (curr, value)
+
+      # Yield backwards to mimic recursives FIFO
+      for i in countdown(matches.len - 1, 0):
+        yield matches[i]
+
+
+  )
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
