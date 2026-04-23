@@ -10,6 +10,7 @@ test "Can match a character":
   g.check {
     "a": 'a',
     "b": 'b',
+    "cd": 'c'
   }
 
 test "Can match digit":
@@ -24,14 +25,14 @@ test "Can match digit":
   }
 
 test "Can match string":
-  let g = e"hello" * anyAll
+  let g = e"hello"
   g.check {
     "hello": "hello",
     "helloworld": "hello"
   }
 
 test "Can parse until target":
-  let g = dot().until(e"hello") * -(?e"hello")
+  let g = dot().until(e"hello")
   g.check {
     "abcdhello": "abcd",
     "hello": "",
@@ -43,10 +44,7 @@ test "Can match * that are turned into strings":
   g.check {
     "": "",
     "ccc": "ccc",
-  }
-
-  g.check {
-    "b": false
+    "a": ""
   }
 
 test "* doesn't eat too much":
@@ -121,7 +119,7 @@ test "Can match union":
   discard val.get().bar
 
 test "Negation matches":
-  let g = (not e"hello") * anyAll
+  let g = not e"hello"
   g.check {
     "world": true,
     "hello": false

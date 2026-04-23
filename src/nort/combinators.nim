@@ -332,8 +332,8 @@ proc `not`*(comb: Combinator): Combinator[Void] =
   )
 
 proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
-  ## Expects a combinator to match zero or more times, returns all matches.
-  ## This is non-greedy
+  ## Expects a combinator to match zero or more times. Returns all matches
+  ## This is greedy and tries to match the most
   runnableExamples:
     let g = *e"hey"
     assert g.test("")
@@ -342,14 +342,21 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   return initCombinator(proc (): Explorer[Chain[T]] =
     iterator (p: Parser): ParseResult[Chain[T]] {.closure.} =
       # Start with the no match base case
-      var frontier: Deque[ParseResult[Chain[T]]] = [(p, default(Chain[T]))].toDeque()
-      # Find longest match, building up the value and checkpoints
+      var
+        frontier: seq[ParseResult[Chain[T]]] = @[(p, default(Chain[T]))]
+        matches: seq[ParseResult[Chain[T]]] = @[]
+      # Do DFS to mimic the old recursive approach
       while frontier.len > 0:
-        let (curr, value) = frontier.popFirst()
-        yield (curr, value)
+        let (curr, value) = frontier.pop()
+        matches &= (curr, value)
         for match in comb.results(curr):
           let nextItem = (match.parser, value & match.value)
-          frontier.addLast(nextItem)
+          frontier &= nextItem
+
+      for i in countdown(matches.len - 1, 0):
+        yield matches[i]
+
+
   )
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
