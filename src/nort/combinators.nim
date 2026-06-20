@@ -50,7 +50,7 @@ proc join[R](a: tuple, b: tuple, ret: typedesc[R]): R =
 # Combinators
 #
 
-template filter*[T](comb: Combinator[T], check: untyped): Combinator[T] =
+proc filter*[T](comb: Combinator[T], check: proc (value: T): bool): Combinator[T] =
   ## Filter what values are allowed to consider that the filter has passed
   runnableExamples:
     import std/[strutils, sugar]
@@ -61,8 +61,7 @@ template filter*[T](comb: Combinator[T], check: untyped): Combinator[T] =
   initCombinator(proc (): Explorer[T] =
     iterator (p: Parser): ParseResult[T] {.closure.} =
       for res in comb.results(p):
-        let it {.inject, cursor.} = res.value
-        if check:
+        if check(res.value):
           yield res
   )
 
@@ -115,7 +114,7 @@ template expect*(expect: set[char]): Combinator[char] =
     let g = expect({'a', 'b', 'c'})
     assert g.match("a") == some('a')
     assert g.match("d").isNone()
-  filter(dot(), it in expect)
+  filter(dot(), it => it in expect)
 
 proc expect*(expect: string): Combinator[string] =
   ## Expects a certain string
@@ -137,7 +136,7 @@ proc expect*(input: char): Combinator[char] =
     assert g.match("a") == some('a')
     assert g.match("b").isNone()
 
-  filter(dot(), it == input)
+  filter(dot(), it => it == input)
 
 proc expect*[T](values: HashSet[T]): Combinator[T] =
   ## Expects a single value from a set of values.
