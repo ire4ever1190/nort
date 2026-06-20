@@ -342,24 +342,61 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
 
   return initCombinator(proc (): Explorer[Chain[T]] =
     iterator (p: Parser): ParseResult[Chain[T]] {.closure.} =
-      # Start with the no match base case
+      # We want to not materialise all the results ahead of time cause that would
+      # just create duplicate memory e.g. [a], [a, b], [a, b, c]
+      # This also creates slowdowns cause now each step needs to make a new list, copy, and add.
+      #
+      # We do this using a linked list sort of structure, where `tails` tells us two things
+      # - its index matches with `heads`
+      # - the parent (previous match) is at `tails[i]`
+      # So at any tails index, we know its value along with the value that came before.
+      # Yes we could use a tuple, but having two lists allows us to search it faster later
+
       var
-        frontier: seq[ParseResult[Chain[T]]] = @[(p, default(Chain[T]))]
-        matches: seq[ParseResult[Chain[T]]] = @[]
-      # Do DFS to mimic the old recursive approach
+        heads: seq[T] = @[] # Stores the matched values
+        tails: seq[int] = @[] # Store the previous index that came before this amtch
+        frontier: seq[tuple[parser: Parser, tailIdx: int]] = @[(p, -1)] # -1 means there is no value
+        matches: seq[tuple[parser: Parser, tailIdx: int]] = @[]
       while frontier.len > 0:
-        let (curr, value) = frontier.pop()
+        let (curr, tailIdx) = frontier.pop()
         for match in comb.results(curr):
-          let nextItem = (match.parser, value & match.value)
-          frontier &= nextItem
+          heads.add(match.value)
+          tails.add(tailIdx)
+          frontier.add((match.parser, heads.high))
         # Everything matches itself.
         # In the base case that nothing matches, it just means nothing else is added
         # to the frontier so this is the last item
-        matches &= (curr, value)
+        matches.add((curr, tailIdx))
 
-      # Yield backwards to mimic recursives FILO
-      for _ in 0 ..< matches.len:
-        yield matches.pop()
+      # Yield backwards to mimic recursives FILO. Materialise the linked list into
+      # a Chain[T] only when the result is actually consumed. Yes we have to rebuild it
+      # each step, but majority of the time the full list isn't even used
+      for i in countdown(matches.len - 1, 0):
+        let (parser, idx {.used.}) = matches[i]
+        when T is Void:
+          # Chain semantics for `Void` just make `Void`
+          # So we can skip materialising anything
+          yield (parser, Void())
+        else:
+          # First figure out how long the match was
+          let len = block:
+            var n = 0
+            var c = idx
+            while c >= 0:
+              inc n
+              c = tails[c]
+            n
+          var value = (when T is char: newStringUninit(len) else: newSeq[T](len))
+
+          # Now we work from the end of the matches, up the parents filling in the values
+          var c = idx
+          var pos = len - 1
+          while c >= 0:
+            value[pos] = heads[c]
+            # remember, tails stores the parent match
+            c = tails[c]
+            dec pos
+          yield (parser, value)
   )
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
