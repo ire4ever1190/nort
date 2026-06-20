@@ -39,7 +39,7 @@ iterator results*[T](comb: Combinator[T], parser: Parser): ParseResult[T] =
   for item in iter(parser):
     yield item
 
-template initCombinator*[T](factory: proc (): Explorer[T]): Combinator[T] =
+proc initCombinator*[T](factory: proc (): Explorer[T]): Combinator[T] =
   ## Builds a combinator from an iterator
   Combinator[T](iter: factory)
 
