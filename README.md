@@ -1,17 +1,21 @@
 # Nort
 
-[docs](https://ire4ever1190.github.io/nort/develop/nort)
+[docs](https://ire4ever1190.github.io/nort/stable/nort)
 
-Parser combination library that is type safe, mainly just an experiment on if I could
+Parser combination library that is
+- **Type Safe**: You know what the parser will return (And its not just strings)
+- **Composable**: Build your patterns up instead of having one massive mess
+- **Easy to Use**: Subjective, but I find this a lot easier than trying to explain regex
 
 ```nim
-let init = any(e("hello"), e("goodbye"))
-let val = any((
-  bar: init$saying * e(Whitespace) * e"world" * fin,
-  foo: e"world"
-)).match("goodbye world")
+let greeting = any(
+  e("hello"),
+  e("goodbye")
+).map(it => it == "hello") # Parsing can be refined on the go
 
-echo val.bar.saying #> "goodbye"
+# Now we know its one of the defined greetings, and we know
+# if its a greeting or a goodbyte
+echo greeting.match("hello").get()
 ```
 
 
