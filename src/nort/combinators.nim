@@ -137,7 +137,7 @@ proc expect*(input: char): Combinator[char] =
     assert g.match("a") == some('a')
     assert g.match("b").isNone()
 
-  expect($input).map(it => it[0])
+  filter(dot(), it == input)
 
 proc expect*[T](values: HashSet[T]): Combinator[T] =
   ## Expects a single value from a set of values.
@@ -358,8 +358,8 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
         matches &= (curr, value)
 
       # Yield backwards to mimic recursives FIFO
-      for i in countdown(matches.len - 1, 0):
-        yield matches[i]
+      for _ in 0 ..< matches.len:
+        yield matches.pop()
   )
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =

@@ -7,7 +7,7 @@ timeIt "Parse a long string":
   doAssert g.match("a".repeat(8000)).isSome()
 
 timeIt "Parse a long string in bigger chunks":
-  let g = *e("a")
+  let g = *e("aaaaaaaaaa")
   doAssert g.match("a".repeat(8000)).isSome()
 
 timeIt "Parse a long string, ignoring everything":

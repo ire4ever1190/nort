@@ -11,3 +11,5 @@ srcDir        = "src"
 
 requires "nim >= 2.2.4"
 requires "gh:ire4ever1190/casserole >= 0.2.0"
+feature "dev":
+ requires "benchy >= 0.1.0"

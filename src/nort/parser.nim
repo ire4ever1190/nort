@@ -38,15 +38,17 @@ template peek*(p: Parser): Option[char] =
   if p.eof: none(char)
   else: some p.data[][p.pos]
 
-func skip*(p: sink Parser, n: int): Parser =
+template skip*(p: sink Parser, n: int): Parser =
   ## Skips the parser by `n` characters
   Parser(data: p.data, pos: p.pos + n)
 
-func eat*(p: sink Parser): Option[(Parser, char)] =
+template eat*(p: sink Parser): Option[(Parser, char)] =
   ## Attempts to grab the next character and return rest of data
   let v = p.peek()
   if v.isSome():
-    return some((p.skip(1), v.unsafeGet()))
+    some((p.skip(1), v.unsafeGet()))
+  else:
+    none((Parser, char))
 
 func continuesWith*(p: sink Parser, token: sink string): Option[(Parser, string)] =
   ## Checks if the parser continues with a string
