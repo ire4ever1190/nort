@@ -62,7 +62,8 @@ proc trace*[T](comb: Combinator[T]): Combinator[T] =
       var foundSomething = false
       for path in comb.results(p):
         foundSomething = true
-        echo fmt"Parsed: '{p.data[p.pos ..< path.parser.pos]}'"
+
+        echo "Parsed: '", p.slice(p.pos ..< path.parser.pos), "'"
         when T isnot Void:
             echo fmt"Got: '{path.value}'"
         yield path
@@ -82,12 +83,12 @@ proc fin*(): Combinator[Void] {.inline.} =
   )
 
 # Functions to make Void compose with Chain
-proc add*(coll: var Chain[Void], val: Void) = discard
-proc `&`*(a, b: Void): Void = a
+template add*(coll: var Chain[Void], val: Void) = discard
+template `&`*(a, b: Void): Void = a
 
-proc match*[T](comb: Combinator[T], data: string): Option[T] =
+proc match*[T](comb: Combinator[T], data: sink string): Option[T] =
   ## Checks if a string matches a pattern. Returns the first match.
-  let p = Parser(data: data)
+  let p = initParser(data)
   for res in comb.results(p):
     return res.value.some()
 

@@ -137,6 +137,10 @@ suite "ReDoS":
     let g = *e('a')
     assert g.match("a".repeat(2000)).isSome()
 
+  test "Multiple long string matches":
+    let g = *(dot() * nl)
+    assert g.match((" ".repeat(100) & "\n").repeat(100)).isSome()
+
 suite "Tuple type carrying":
   test "Two tuples copy fields":
     let g = e"hello"$left * e"world"$right
