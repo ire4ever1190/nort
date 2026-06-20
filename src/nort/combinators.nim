@@ -357,7 +357,7 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
         # to the frontier so this is the last item
         matches &= (curr, value)
 
-      # Yield backwards to mimic recursives FIFO
+      # Yield backwards to mimic recursives FILO
       for _ in 0 ..< matches.len:
         yield matches.pop()
   )
