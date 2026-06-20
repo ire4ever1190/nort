@@ -50,7 +50,7 @@ proc join[R](a: tuple, b: tuple, ret: typedesc[R]): R =
 # Combinators
 #
 
-proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] =
+template filter*[T](comb: Combinator[T], check: untyped): Combinator[T] =
   ## Filter what values are allowed to consider that the filter has passed
   runnableExamples:
     import std/[strutils, sugar]
@@ -58,12 +58,27 @@ proc filter*[T](comb: Combinator[T], check: proc (val: T): bool): Combinator[T] 
     assert g.test("hello world")
     assert not g.test("world")
 
-  return initCombinator(proc (): Explorer[T] =
+  initCombinator(proc (): Explorer[T] =
     iterator (p: Parser): ParseResult[T] {.closure.} =
       for res in comb.results(p):
-        if check(res.value):
+        let it {.inject, cursor.} = res.value
+        if check:
           yield res
   )
+
+proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
+  ## Allows you to perform an operator on a combinators output if it passes
+  runnableExamples:
+    import std/[sugar, strutils]
+
+    let g = "hello".expect.map(toUpperAscii)
+    assert g.match("hello").get() == "HELLO"
+
+  return initCombinator(proc (): Explorer[R] =
+    iterator (p: Parser): ParseResult[R] {.closure.} =
+      for res in comb.results(p):
+        yield (res.parser, op(res.value))
+    )
 
 proc dot*(): Combinator[char] =
   ## Parses any character
@@ -94,22 +109,13 @@ proc epsilon(): Combinator[Void] =
   ## Matches the empty string and doesn't return any input
   return succeed(Void())
 
-proc expect*(input: char): Combinator[char] =
-  ## Expects a character to appear
-  runnableExamples:
-    let g = expect('a')
-    assert g.match("a") == some('a')
-    assert g.match("b").isNone()
-
-  return filter(dot(), it => it == input)
-
-proc expect*(expect: set[char]): Combinator[char] =
+template expect*(expect: set[char]): Combinator[char] =
   ## Expects a set of characters, returns the matched value
   runnableExamples:
     let g = expect({'a', 'b', 'c'})
     assert g.match("a") == some('a')
     assert g.match("d").isNone()
-  return filter(dot(), it => it in expect)
+  filter(dot(), it in expect)
 
 proc expect*(expect: string): Combinator[string] =
   ## Expects a certain string
@@ -123,6 +129,15 @@ proc expect*(expect: string): Combinator[string] =
       if Some(res) ?== p.continuesWith(expect):
         yield res
   )
+
+proc expect*(input: char): Combinator[char] =
+  ## Expects a character to appear
+  runnableExamples:
+    let g = expect('a')
+    assert g.match("a") == some('a')
+    assert g.match("b").isNone()
+
+  expect($input).map(it => it[0])
 
 proc expect*[T](values: HashSet[T]): Combinator[T] =
   ## Expects a single value from a set of values.
@@ -146,20 +161,6 @@ proc just*[T](comb: Combinator[T]): Combinator[T] =
         if res.parser.len == 0: # No input left
           yield res
   )
-
-proc map*[T, R](comb: Combinator[T], op: proc (inp: T): R): Combinator[R] =
-  ## Allows you to perform an operator on a combinators output if it passes
-  runnableExamples:
-    import std/[sugar, strutils]
-
-    let g = "hello".expect.map(toUpperAscii)
-    assert g.match("hello").get() == "HELLO"
-
-  return initCombinator(proc (): Explorer[R] =
-    iterator (p: Parser): ParseResult[R] {.closure.} =
-      for res in comb.results(p):
-        yield (res.parser, op(res.value))
-    )
 
 proc `-`*(comb: Combinator): Combinator[Void] =
   ## Erases the type from a combinator
@@ -359,8 +360,6 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
       # Yield backwards to mimic recursives FIFO
       for i in countdown(matches.len - 1, 0):
         yield matches[i]
-
-
   )
 
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =

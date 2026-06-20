@@ -1,6 +1,7 @@
 ## Contains basic parsing code. This can be reused for writing your own combinators
 
 import std/[options, parseutils, sugar]
+import pkg/casserole
 
 type
   Parser* = object
@@ -15,38 +16,40 @@ func initParser*(data: sink string): Parser =
   payload[] = data
   Parser(data: payload, pos: 0)
 
-func len*(p: Parser): int =
+template len*(p: Parser): int =
   ## Returns the length of remaining data
-  return p.data[].len - p.pos
+  p.data[].len - p.pos
 
-func eof*(p: Parser): bool =
+template eof*(p: Parser): bool =
   ## Checks if the parser is at the end of the data
-  return p.len == 0
+  p.len == 0
 
 func slice*(p: Parser, data: HSlice[int, int]): string =
   ## Returns a slice of data. This is for debugging, should
   ## not be used for actual parsing
-  return p.data[][data]
+  p.data[][data]
 
-func pos*(p: Parser): int =
+template pos*(p: Parser): int =
   ## Getter for the parsers current position
-  return p.pos
+  p.pos
 
-func peek*(p: Parser): Option[char] =
+template peek*(p: Parser): Option[char] =
   ## Returns next character (if not eof). Does not use input
   if p.eof: none(char)
-  else: some p.data[p.pos]
+  else: some p.data[][p.pos]
 
 func skip*(p: sink Parser, n: int): Parser =
   ## Skips the parser by `n` characters
-  return Parser(data: p.data, pos: p.pos + n)
+  Parser(data: p.data, pos: p.pos + n)
 
 func eat*(p: sink Parser): Option[(Parser, char)] =
   ## Attempts to grab the next character and return rest of data
-  p.peek().map(c => (p.skip(1), c))
+  let v = p.peek()
+  if v.isSome():
+    return some((p.skip(1), v.unsafeGet()))
 
 func continuesWith*(p: sink Parser, token: sink string): Option[(Parser, string)] =
   ## Checks if the parser continues with a string
-  let matched = p.data[].skip(token, p.pos) == 0
+  let matched = p.data[].skip(token, p.pos) > 0
   if matched: some((p.skip(token.len), token))
   else: none((Parser, string))
