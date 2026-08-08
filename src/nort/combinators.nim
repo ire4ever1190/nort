@@ -398,6 +398,55 @@ proc `*`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
           yield (parser, value)
   )
 
+proc longest*[T](comb: Combinator[T]): Combinator[Chain[T]] =
+  ## Matches `comb` zero or more times, greedily taking only the first result
+  ## at each step. This still allows for backtracking since it returns all matches
+  ## but unlike `*` this doesn't handle alternation so this should only be used
+  ## when `comb` is deterministic or else you'll run into unexpected behaviour
+  runnableExamples:
+    let g = longest e"hey"
+    assert g.test("")
+    assert g.test("heyhey")
+
+  runnableExamples:
+    # `a | ab` matches the same position in two ways (consuming 1 or 2 chars).
+    # `*` explores both alternatives so it can match "ab" and leave "c"
+    let starG = *(e('a') | e("ab")) * e('c')
+    assert starG.test("abc")
+
+    # `longest` only takes the first alternative ("a"), so it never reaches "c"
+    let longestG = longest(e('a') | e("ab")) * e('c')
+    assert not longestG.test("abc")
+
+  return initCombinator(proc (): Explorer[Chain[T]] =
+    iterator (p: Parser): ParseResult[Chain[T]] {.closure.} =
+      var positions: seq[Parser] = @[p]
+      var values: seq[T] = @[]
+      var curr = p
+      while true:
+        var matched = false
+        for (next, v) in comb.results(curr):
+          values.add(v)
+          positions.add(next)
+          curr = next
+          matched = true
+          break # greedy: take first result only
+        if not matched:
+          break
+
+      when T is Void:
+        for i in countdown(positions.len - 1, 0):
+          yield (positions[i], Void())
+      elif T is char:
+        for i in countdown(values.len, 0):
+          var value = newStringUninit(i)
+          for j in 0 ..< i: value[j] = values[j]
+          yield (positions[i], value)
+      else:
+        for i in countdown(values.len, 0):
+          yield (positions[i], values[0 ..< i])
+  )
+
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
   runnableExamples:
