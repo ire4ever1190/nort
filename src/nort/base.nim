@@ -82,6 +82,15 @@ proc fin*(): Combinator[Void] {.inline.} =
         yield (p, Void())
   )
 
+proc start*(): Combinator[Void] =
+  ## Matches the start of input
+
+  return initCombinator(proc (): Explorer[Void] =
+    iterator (p: Parser): ParseResult[Void] {.closure.} =
+      if p.pos == 0:
+        yield (p, Void())
+  )
+
 # Functions to make Void compose with Chain
 template add*(coll: var Chain[Void], val: Void) = discard
 template `&`*(a, b: Void): Void = a

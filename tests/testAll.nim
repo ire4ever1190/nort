@@ -125,6 +125,20 @@ test "Negation matches":
     "hello": false
   }
 
+suite "Start of input":
+  test "Matches start":
+    let g = start()
+    g.check {
+      "": true
+    }
+
+  test "Used in OR to match start of line":
+    let g = (start() | e('\n')) * e"Hello"
+    g.check {
+      "Hello": true,
+      "\nHello": true
+    }
+
 suite "ReDoS":
   # Series of grammars to test how we hold up against ReDoS attacks
   # Lazy evaluation should help with most
