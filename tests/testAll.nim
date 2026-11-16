@@ -13,16 +13,37 @@ test "Can match a character":
     "cd": 'c'
   }
 
-test "Can match digit":
-  let g = digit()
-  g.check {
-    "1": 1,
-    "-1": -1,
-    "00999": 999
-  }
-  g.check {
-    "a": false,
-  }
+suite "Digit":
+  test "Can match digit":
+    let g = digit()
+    g.check {
+      "1": 1,
+      "-1": -1,
+      "00999": 999
+    }
+    g.check {
+      "a": false,
+    }
+
+  test "Can match digit with type":
+    let g = digit(int16)
+    g.check {
+      "20": 20.int16,
+      "-1": -1,
+    }
+    g.check {
+      "6553700": false,
+    }
+
+  test "Can match digit with type":
+    let g = digit(range[0..5])
+    g.check {
+      "1": range[0..5](1),
+    }
+    g.check {
+      "6": false,
+      "-1": false,
+    }
 
 test "Can match string":
   let g = e"hello"

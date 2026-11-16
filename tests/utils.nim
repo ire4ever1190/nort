@@ -8,6 +8,7 @@ template check*(comb: Combinator, tests: openArray[(string, bool)]) =
     let matched = comb.test(input)
     if matched != expected:
       checkpoint input
+
     check matched == expected
 
 template check*[T](comb: Combinator[T], tests: openArray[(string, T)]) =
@@ -16,6 +17,8 @@ template check*[T](comb: Combinator[T], tests: openArray[(string, T)]) =
     let matched = comb.match(input)
     if matched.isNone() or matched.get() != expected:
       checkpoint input
+      if matched.isSome():
+        echo "Got ", matched.get()
 
     check matched.isSome()
     check matched.get() == expected

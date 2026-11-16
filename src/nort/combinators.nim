@@ -447,6 +447,15 @@ proc longest*[T](comb: Combinator[T]): Combinator[Chain[T]] =
           yield (positions[i], values[0 ..< i])
   )
 
+proc cut*[T](comb: Combinator[T]): Combinator[T] =
+  ## Returns the first match. Use this to prevent backtracking
+  return initCombinator(proc (): Explorer[T] =
+    iterator (p: Parser): ParseResult[T] {.closure.} =
+      for i in comb.results(p):
+        yield i
+        break
+  )
+
 proc `+`*[T](comb: Combinator[T]): Combinator[Chain[T]] =
   ## Expects a combinator to match 1 or more times. Returns all matches
   runnableExamples:
@@ -568,15 +577,27 @@ proc occurs*[T](comb: Combinator[T]): Combinator[bool] =
   (?comb).map(it => it.isSome)
 
 proc digit*(): Combinator[int] =
-  ## Expects a digit
+  ## Expects a digit.
   runnableExamples:
     assert digit().match("123").get() == 123
     assert digit().match("-123").get() == -123
 
-  (e('-').occurs() <*> +e({'0'..'9'})).map() do (values: (bool, string)) -> int:
-    result = values[1].parseInt()
-    if values[0]:
-      result *= -1
+  (e('-').occurs() <*> (e(Digits) * e(Digits).longest()))
+    .map() do (values: (bool, string)) -> int:
+      result = values[1].parseInt()
+      if values[0]:
+        result *= -1
+
+proc digit*[T: SomeInteger](typ: typedesc[T]): Combinator[T] =
+  ## Expects a digit. Can be passed a type so it can be restricted
+  runnableExamples:
+    assert digit(range[1..5]).match("5").get() == 5
+    assert digit(range[1..5]).match("6").isNone()
+
+  digit()
+    .cut() # We need to cut or else it will parse only the digits that will make it fit
+    .filter(inp => inp in T.low .. T.high)
+    .map(inp => T(inp))
 
 proc map*[R](mapping: openArray[(Combinator[Void], R)]): Combinator[R] =
   ## Maps matching input values to output values

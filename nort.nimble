@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.6.2"
+version       = "0.7.0"
 author        = "Jake Leahy"
 description   = "Type safe parser combinator"
 license       = "MIT"
